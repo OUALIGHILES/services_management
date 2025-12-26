@@ -1,0 +1,275 @@
+Project summary:
+Build a full-stack delivery/service marketplace web application using Next.js (app router), Supabase as backend (database, storage, realtime), and simple NextAuth-based authentication. The system must support Customers, Drivers, Admin, Sub-Admin (operators), and multi-role behavior including "Admin acting as Driver/Customer". Follow the attached admin-panel specification (dashboard contents, flows, and features). Reference: uploaded design/spec document.
+
+Core requirements:
+1. Stack:
+   - Frontend: Next.js (latest stable, app router), TypeScript, React.
+   - Backend: Supabase (Postgres DB, Auth, Storage, Realtime).
+   - Auth: NextAuth (simple setup). Option A: use NextAuth Credentials provider with Supabase users table. Option B (recommended): use Supabase Auth for sign-in and use NextAuth session-management adapter if required. Provide both options in implementation notes.
+   - UI: Tailwind CSS. Keep UI clean, responsive, and modern.
+   - Deployment: Vercel for frontend, Supabase for backend.
+
+2. Main features (implement exactly as spec):
+   - Multi-role authentication + role-based access control (Admin, Sub-Admin/Operator, Driver, Customer).
+   - Public customer-facing pages: Home with categories, search, service listing by category/subcategory, service details, place booking/order.
+   - Driver app/web UI: Accept offers, see assigned orders, online/offline status, wallet, vehicle details.
+   - Admin dashboard: full control panels matching the spec (Dashboard stats, Notifications, Admin Settings, Sub-Admin Details, Zones, Pricing, Facility/Service/Store management, Vehicle management, Drivers, All Orders with filters and order lifecycle, Payment management, Ratings & Reviews, Help Center, SEO).
+   - Orders flows:
+     - New Service Request -> Ingoing Order -> Delivery/Completed or Cancelled
+     - Support both direct-accept and offer-based driver flows (drivers can submit offers).
+     - Admin can create orders on behalf of customer, assign drivers, schedule orders, and act as driver or customer.
+     - Messaging between Admin-Driver-Customer inside order (Message Center).
+   - Notifications: Push / In-app + optional WhatsApp/SMS extension hooks.
+   - Pricing & Zones: zone-based pricing with zone fixed/average, commission percentage or fixed, price types, zone coordinates (lat/lng).
+   - Payment management: driver & customer wallets, deposit/withdrawal requests, admin manual adjustments, commissions accounting.
+   - Roles & permissions editor for admin to create flexible staff roles (limit access to specific categories/services).
+   - Audit logging for actions done by admin/sub-admin acting as other roles.
+   - Multi-language support (English + Arabic + Urdu as fields exist in spec).
+   - SEO and Landing page settings in Admin.
+   - Import/export or PDF export for backlog/tasks optional.
+
+3. Database schema (Supabase / Postgres) — initial SQL tables (simplified):
+   -- Users & Auth
+   CREATE TABLE users (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     email text UNIQUE,
+     phone text,
+     full_name text,
+     role text DEFAULT 'customer', -- 'admin','subadmin','driver','customer'
+     is_active boolean DEFAULT true,
+     created_at timestamptz DEFAULT now(),
+     metadata jsonb
+   );
+
+   CREATE TABLE drivers (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     user_id uuid REFERENCES users(id),
+     vehicle_id uuid REFERENCES vehicles(id),
+     status text, -- 'pending','approved','offline','online'
+     wallet_balance numeric DEFAULT 0,
+     special boolean DEFAULT false,
+     created_at timestamptz DEFAULT now(),
+     profile jsonb
+   );
+
+   CREATE TABLE vehicles (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     name text,
+     capacity integer,
+     base_fare numeric,
+     price_per_km numeric,
+     images text[],
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE zones (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     name text,
+     address text,
+     coords geography(Point,4326), -- lat/lon
+     avg_price numeric,
+     fixed_price numeric,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE service_categories (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     name jsonb, -- {en:'', ar:'', ur:''}
+     description jsonb,
+     active boolean DEFAULT true,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE services (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     category_id uuid REFERENCES service_categories(id),
+     name jsonb,
+     delivery_type text,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE pricing (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     service_id uuid REFERENCES services(id),
+     zone_id uuid REFERENCES zones(id),
+     price_type text, -- 'fixed'|'average'
+     fixed_price numeric,
+     average_price numeric,
+     commission_type text, -- 'percentage'|'fixed'
+     commission_value numeric,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE orders (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     request_number text UNIQUE,
+     customer_id uuid REFERENCES users(id),
+     provider_id uuid REFERENCES users(id), -- store or service provider
+     driver_id uuid REFERENCES drivers(id),
+     service_id uuid REFERENCES services(id),
+     sub_service text,
+     status text, -- 'new','pending','in_progress','delivered','cancelled'
+     payment_method text,
+     total_amount numeric,
+     driver_share numeric,
+     created_at timestamptz DEFAULT now(),
+     scheduled_for timestamptz,
+     location jsonb,
+     notes text
+   );
+
+   CREATE TABLE order_offers (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     order_id uuid REFERENCES orders(id),
+     driver_id uuid REFERENCES drivers(id),
+     price numeric,
+     accepted boolean DEFAULT false,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE transactions (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     user_id uuid REFERENCES users(id),
+     type text, -- 'deposit','withdrawal','adjustment','commission'
+     amount numeric,
+     status text,
+     metadata jsonb,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE notifications (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     user_id uuid REFERENCES users(id),
+     title text,
+     message text,
+     type text,
+     read boolean DEFAULT false,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE messages (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     order_id uuid REFERENCES orders(id),
+     from_user uuid REFERENCES users(id),
+     to_user uuid REFERENCES users(id),
+     body text,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE ratings (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     order_id uuid REFERENCES orders(id),
+     rater_id uuid REFERENCES users(id),
+     rated_id uuid REFERENCES users(id),
+     rating integer,
+     feedback text,
+     created_at timestamptz DEFAULT now()
+   );
+
+   CREATE TABLE admin_settings (
+     id serial PRIMARY KEY,
+     key text UNIQUE,
+     value jsonb,
+     updated_at timestamptz DEFAULT now()
+   );
+
+   -- Add indexes, constraints, and relations as needed.
+
+4. API and app structure:
+   - Use Next.js app router and server actions / API routes for:
+     - /api/auth/* (NextAuth or Supabase)
+     - /api/orders (list, create, update, assign, change-status)
+     - /api/orders/:id/offers (driver offers)
+     - /api/drivers (list, approve, wallet adjustments)
+     - /api/zones, /api/pricing, /api/services
+     - /api/payments (deposit/withdrawal/adjustment)
+     - /api/notifications (send, list, mark-read)
+     - /api/messages (in-order messaging)
+     - /api/admin/settings
+   - Realtime: use Supabase real-time for order status updates and new order notifications / driver alerts.
+   - Storage: Supabase Storage for images (vehicles, banners, product images). Expose signed URLs.
+
+5. Auth & RBAC:
+   - Roles: customer, driver, admin, subadmin (operator).
+   - Admin must be able to create/manage sub-admins and set granular permissions (e.g., only manage water-tank orders).
+   - Implement a permissions table or JSON permissions inside users/roles to control UI & endpoint access.
+   - If using Supabase Auth, create row-level security policies that check JWT role and user id.
+   - Audit log: log acting_as_user and who performed the action with timestamps.
+
+6. Order assignment flows:
+   - Direct Acceptance: When a Customer places order, if auto-direct set, the matched driver gets assigned and sees it in-app.
+   - Offer-based: Drivers see a new request and can submit offers. Customer/admin can accept an offer. Track Over Count and offers list.
+   - Admin should be able to create order on behalf of customer and/or assign a driver manually.
+
+7. Driver alerts & notification system:
+   - Configurable alert timeout: if driver doesn't accept within X seconds, re-alert or mark pending.
+   - Notification channels: in-app (realtime), push (web push optional), hooks for WhatsApp/SMS via webhooks.
+
+8. Messaging & Message Center:
+   - Order-specific chat; Admin can jump into any conversation and send messages as Admin on behalf of either party.
+   - Messages stored in DB. Provide filtering by problem type and automatic classification placeholder (AI-response optional later).
+
+9. Payment flows:
+   - Wallet management: drivers and customers have balances; admin can manually adjust.
+   - Deposit/withdrawal requests: driver requests withdrawal -> admin approves/rejects.
+   - Commission calculation: per pricing record (percentage or fixed) and admin/finance view.
+
+10. Admin UI requirements (from spec):
+   - Dashboard stats: totals for users, stores, drivers, vehicles, categories, products, bookings, earnings, profit.
+   - Sections: Notifications, Admin Settings, Sub-Admin Details, Home Panel (Banner & Welcome pages), Zones, Pricing, Facility Details, Store Category, Admin Product, Service Category, User Details, Store Details, Driver Management, All Orders, Payment Management, Rating & Review, Help Center, SEO settings.
+   - Order lists with multi-filters: Category, Subcategory, Order Type, Status, Assigned Staff, Date ranges.
+   - Order row: request number, added-ago time, client name & WhatsApp icon, payment method, notes, offers list, action buttons, change status, cancel reason display.
+   - Ability to impersonate or "act as" driver/customer for support and create orders on their behalf (must be auditable).
+
+11. Localization:
+   - All user-facing content supports JSON bilingual fields for English/Arabic/Urdu as in spec.
+   - Admin must be able to edit strings for welcome pages and banners in multiple languages.
+
+12. Testing & acceptance:
+   - Unit tests for core services (order create/assign/complete, offers, wallet adjustments).
+   - End-to-end tests for main flows (customer places order -> driver accepts -> delivery complete -> payment distribution).
+   - Manual acceptance criteria checklist included:
+     - Admin can create sub-admin with limited permissions and that sub-admin only sees allowed orders.
+     - Admin can create orders on behalf of customer and it appears as if by customer (logged).
+     - Drivers can submit offers and admin/customer can accept.
+     - Wallet adjustments and withdrawal flows operate and record transactions.
+     - Zone pricing shows average/fixed calculations correctly.
+
+13. Deliverables:
+   - Git repo with well-structured commits and README for setup (local + production).
+   - Supabase SQL migration scripts for all tables and policies.
+   - Environment example (.env.example).
+   - Deployment instructions to Vercel + Supabase.
+   - Postman collection or API docs (OpenAPI) for all endpoints.
+   - Short admin user manual (how to manage zones, pricing, orders, staff).
+
+Design/UX notes:
+ - Keep UI consistent with provided admin-panel spec (panels, lists, action buttons). Use a left side nav with main sections.
+ - For speed, provide a "minimal viable admin UI" that contains all features but more basic styling; then iterate for polish.
+ - Provide a staging demo with seeded data (drivers, customers, orders) to validate flows.
+
+Permissions & security:
+ - Use Supabase RLS policies to prevent unauthorized access.
+ - Sanitize file uploads and limit image sizes.
+ - Log all admin actions with who-acted and timestamp.
+
+Extra implementation suggestions:
+ - Use server-side rendering where SEO matters (landing page).
+ - Use edge functions or serverless for webhooks (WhatsApp/SMS).
+ - Use Supabase Functions or a small worker for nightly accounting reconciliations.
+ - Provide a toggle in Admin Settings to switch between Direct Acceptance vs Offer-based flow globally or per service.
+
+Time & milestones suggestion (for dev team):
+ - Phase 1 (MVP): Auth, basic customer flows, orders, driver flows (direct), admin basic dashboard, zones & pricing, payments (wallet adjust).
+ - Phase 2: Offer-based system, messaging, advanced admin tools, roles & permissions, notifications.
+ - Phase 3: Polish, multi-language, SEO, testing, deployment.
+
+Important: please read the attached admin-panel spec carefully for exact field names, lists and UI details before implementation. (Spec file provided).
+
+If you need code scaffolding, generate:
+ - Next.js TypeScript project skeleton with app router and Tailwind configured.
+ - Supabase SQL migrations for tables above.
+ - Basic NextAuth config (Credentials example) and example of Supabase Auth integration.
+ - Example server actions/api endpoints for orders and offers.
+
+Deliver the full repo, migrations, and a short video walkthrough of the admin dashboard flows.
