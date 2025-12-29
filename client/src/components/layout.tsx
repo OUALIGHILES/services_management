@@ -17,7 +17,8 @@ import {
   Headphones,
   Search,
   Store,
-  Monitor
+  Monitor,
+  CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { href: "/admin/store-details", label: "Store Details", icon: Store },
         { href: "/admin/vehicle-details", label: "Vehicle Details", icon: Truck },
         { href: "/admin/home-banner", label: "Home Banner", icon: Monitor },
+        { href: "/admin/account-control", label: "Account Control", icon: CreditCard },
         ...common
       ];
     }

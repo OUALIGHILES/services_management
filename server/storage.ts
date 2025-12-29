@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
-  permissions, subAdminPermissions,
+  permissions, subAdminPermissions, impersonationLogs,
   type User, type InsertUser, type Driver, type InsertDriver,
   type Vehicle, type InsertVehicle, type Zone, type InsertZone,
   type ServiceCategory, type InsertServiceCategory, type Subcategory, type InsertSubcategory, type Service, type InsertService,
@@ -12,7 +12,8 @@ import {
   type HomeBanner, type InsertHomeBanner,
   type DriverDocument, type InsertDriverDocument, type AdminSetting,
   type Store, type InsertStore,
-  type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission
+  type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission,
+  type ImpersonationLog, type InsertImpersonationLog
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
