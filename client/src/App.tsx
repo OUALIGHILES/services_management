@@ -46,6 +46,7 @@ import UserWelcome from "@/pages/user-welcome";
 import DriverWelcome from "@/pages/driver-welcome";
 import AdminVehicleDetails from "@/pages/admin-vehicle-details";
 import AdminHomeBanner from "@/pages/admin-home-banner";
+import AdminAccountControl from "@/pages/admin-account-control";
 
 function ProtectedRoute({ 
   component: Component, 
@@ -127,7 +128,9 @@ function Router() {
       <Route path="/driver/register" component={DriverRegister} />
 
       {/* Admin Routes */}
-      <Route path="/admin" component={Admin} allowedRoles={['admin', 'subadmin']} />
+      <Route path="/admin">
+        <ProtectedRoute component={Admin} allowedRoles={['admin', 'subadmin']} />
+      </Route>
       <Route path="/admin/orders">
          <ProtectedRoute component={AdminOrders} allowedRoles={['admin', 'subadmin']} />
       </Route>
@@ -186,6 +189,9 @@ function Router() {
       </Route>
       <Route path="/admin/home-banner">
          <ProtectedRoute component={AdminHomeBanner} allowedRoles={['admin', 'subadmin']} />
+      </Route>
+      <Route path="/admin/account-control">
+         <ProtectedRoute component={AdminAccountControl} allowedRoles={['admin', 'subadmin']} />
       </Route>
 
       <Route component={NotFound} />

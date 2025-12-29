@@ -2,6 +2,7 @@ import { db } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
+  permissions, subAdminPermissions,
   type User, type InsertUser, type Driver, type InsertDriver,
   type Vehicle, type InsertVehicle, type Zone, type InsertZone,
   type ServiceCategory, type InsertServiceCategory, type Subcategory, type InsertSubcategory, type Service, type InsertService,
@@ -10,9 +11,10 @@ import {
   type Product, type InsertProduct,
   type HomeBanner, type InsertHomeBanner,
   type DriverDocument, type InsertDriverDocument, type AdminSetting,
-  type Store, type InsertStore
+  type Store, type InsertStore,
+  type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // User
@@ -114,6 +116,10 @@ export interface IStorage {
 
   // Admin Settings
   getAdminSetting(key: string): Promise<AdminSetting | undefined>;
+
+  // Impersonation Logs
+  createImpersonationLog(log: InsertImpersonationLog): Promise<ImpersonationLog>;
+  getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -210,8 +216,12 @@ export class DatabaseStorage implements IStorage {
   async removePermissionFromSubAdmin(userId: string, permissionId: string): Promise<boolean> {
     try {
       const result = await db.delete(subAdminPermissions)
-        .where(eq(subAdminPermissions.userId, userId))
-        .where(eq(subAdminPermissions.permissionId, permissionId));
+        .where(
+          and(
+            eq(subAdminPermissions.userId, userId),
+            eq(subAdminPermissions.permissionId, permissionId)
+          )
+        );
       return result.rowsAffected > 0;
     } catch (error) {
       console.error("Database error in removePermissionFromSubAdmin:", error);
@@ -237,8 +247,12 @@ export class DatabaseStorage implements IStorage {
       const result = await db.select({ count: db.$count() })
         .from(subAdminPermissions)
         .innerJoin(permissions, eq(subAdminPermissions.permissionId, permissions.id))
-        .where(eq(subAdminPermissions.userId, userId))
-        .where(eq(permissions.name, permissionName));
+        .where(
+          and(
+            eq(subAdminPermissions.userId, userId),
+            eq(permissions.name, permissionName)
+          )
+        );
       return result[0]?.count > 0;
     } catch (error) {
       console.error("Database error in hasSubAdminPermission:", error);
@@ -854,6 +868,51 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Database error in getAdminSetting:", error);
       return undefined;
+    }
+  }
+
+  // Impersonation Logs
+  async createImpersonationLog(insertLog: InsertImpersonationLog): Promise<ImpersonationLog> {
+    try {
+      const [log] = await db.insert(impersonationLogs).values(insertLog).returning();
+      return log;
+    } catch (error) {
+      console.error("Database error in createImpersonationLog:", error);
+      // If it's a foreign key constraint error, we'll log it but not throw to allow impersonation to continue
+      if (error.message && (error.message.includes('foreign key') || error.message.includes('FK') || error.message.includes('constraint'))) {
+        console.log("Foreign key constraint error - skipping impersonation log creation");
+        // Return without throwing to allow impersonation to continue
+        return null; // We'll handle null return in the route
+      }
+      throw error;
+    }
+  }
+
+  async getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]> {
+    try {
+      let query = db.select().from(impersonationLogs);
+
+      if (adminId) {
+        query = query.where(eq(impersonationLogs.adminId, adminId));
+      }
+
+      if (targetUserId) {
+        if (adminId) {
+          // If adminId was already applied, use andWhere
+          query = query.andWhere(eq(impersonationLogs.targetUserId, targetUserId));
+        } else {
+          // If no adminId, just apply targetUserId
+          query = query.where(eq(impersonationLogs.targetUserId, targetUserId));
+        }
+      }
+
+      // Order by creation date, most recent first
+      query = query.orderBy(desc(impersonationLogs.createdAt));
+
+      return await query;
+    } catch (error) {
+      console.error("Database error in getImpersonationLogs:", error);
+      return [];
     }
   }
 }

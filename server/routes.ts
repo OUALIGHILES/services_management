@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { requireAuth, requireRole, isAdmin, isAdminOrSubAdmin } from "./middleware/auth";
+import { requireAuth, requireRole, isAdmin, isAdminOrSubAdmin, requireImpersonationPermission } from "./middleware/auth";
 import { InsertNotification } from "@shared/schema";
 
 export async function registerRoutes(
@@ -302,7 +302,14 @@ export async function registerRoutes(
       res.status(201).json(subcategory);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+        // Return all validation errors instead of just the first one
+        return res.status(400).json({
+          message: "Validation failed",
+          errors: err.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
       }
       console.error("Error creating subcategory:", err);
       res.status(500).json({ message: "Failed to create subcategory" });
@@ -317,7 +324,14 @@ export async function registerRoutes(
       res.json(updatedSubcategory);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+        // Return all validation errors instead of just the first one
+        return res.status(400).json({
+          message: "Validation failed",
+          errors: err.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
       }
       throw err;
     }
@@ -693,6 +707,150 @@ export async function registerRoutes(
     }
   });
 
+  // --- Impersonation Endpoints ---
+  app.post("/api/impersonate/user/:userId", requireAuth, requireImpersonationPermission, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const adminUser = req.user as any;
+
+      console.log("Starting impersonation for userId:", userId);
+      console.log("Admin user:", adminUser);
+
+      // Check if the admin has permission to impersonate
+      if (adminUser.role !== "admin" && adminUser.role !== "subadmin") {
+        console.log("Admin does not have required role for impersonation");
+        return res.status(403).json({ message: "Insufficient permissions to impersonate users" });
+      }
+
+      // Get the target user
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        console.log("Target user not found:", userId);
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      console.log("Target user found:", targetUser);
+
+      // Log the impersonation action in the impersonation logs
+      try {
+        const logResult = await storage.createImpersonationLog({
+          adminId: adminUser.id,
+          targetUserId: targetUser.id,
+          targetUserRole: targetUser.role,
+          action: 'start',
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent') || ''
+        });
+
+        if (logResult) {
+          console.log("Impersonation log created successfully");
+        } else {
+          console.log("Impersonation log creation skipped or failed, continuing with impersonation");
+        }
+      } catch (logError) {
+        console.error("Error creating impersonation log:", logError);
+        // Don't fail the entire operation if logging fails
+      }
+
+      // For impersonation, we'll set a special session property
+      // In a real implementation, you'd want to store the original user info
+      // and override the session user with the target user
+      (req.session as any).impersonating = {
+        originalUserId: adminUser.id,
+        originalUserRole: adminUser.role,
+        targetUserId: userId,
+        targetUserRole: targetUser.role,
+        startedAt: new Date()
+      };
+
+      // Update the session passport user to the target user
+      (req.session as any).passport.user = targetUser.id;
+      req.user = targetUser;
+
+      res.json({
+        message: "Impersonation started successfully",
+        targetUser
+      });
+    } catch (error) {
+      console.error("Error during impersonation:", error);
+      res.status(500).json({
+        message: "Failed to start impersonation",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  app.post("/api/impersonate/stop", requireAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+
+      // Check if currently impersonating
+      if (!session.impersonating) {
+        return res.status(400).json({ message: "Not currently impersonating" });
+      }
+
+      const { originalUserId, targetUserId, targetUserRole } = session.impersonating;
+
+      // Get the original user
+      const originalUser = await storage.getUser(originalUserId);
+      if (!originalUser) {
+        return res.status(404).json({ message: "Original user not found" });
+      }
+
+      // Log the end of impersonation in the impersonation logs
+      await storage.createImpersonationLog({
+        adminId: originalUser.id,
+        targetUserId: targetUserId,
+        targetUserRole: targetUserRole,
+        action: 'stop',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent') || ''
+      });
+
+      // Restore the original user
+      (req.session as any).passport.user = originalUser.id;
+      req.user = originalUser;
+      delete session.impersonating;
+
+      res.json({
+        message: "Impersonation ended successfully",
+        originalUser
+      });
+    } catch (error) {
+      console.error("Error ending impersonation:", error);
+      res.status(500).json({ message: "Failed to end impersonation" });
+    }
+  });
+
+  app.get("/api/impersonate/status", requireAuth, async (req, res) => {
+    try {
+      const session = req.session as any;
+      const isImpersonating = !!session.impersonating;
+
+      if (isImpersonating) {
+        const originalUser = await storage.getUser(session.impersonating.originalUserId);
+        res.json({
+          isImpersonating: true,
+          originalUser: {
+            id: originalUser?.id,
+            fullName: originalUser?.fullName,
+            role: originalUser?.role
+          },
+          targetUser: {
+            id: session.impersonating.targetUserId,
+            role: session.impersonating.targetUserRole
+          },
+          startedAt: session.impersonating.startedAt
+        });
+      } else {
+        res.json({ isImpersonating: false });
+      }
+    } catch (error) {
+      console.error("Error checking impersonation status:", error);
+      res.status(500).json({ message: "Failed to check impersonation status" });
+    }
+  });
+
 
   return httpServer;
 }
@@ -701,7 +859,7 @@ export async function seedDatabase() {
   const users = await storage.getAllUsers();
   if (users.length === 0) {
     console.log("Seeding database...");
-    
+
     // 1. Create Users
     const admin = await storage.createUser({
       email: "admin@example.com",
@@ -783,6 +941,17 @@ export async function seedDatabase() {
       location: { address: "123 Main St" },
       notes: "Please arrive before noon"
     });
+
+    // 7. Create permissions including impersonation permission
+    try {
+      await storage.createPermission({
+        name: "user_impersonation",
+        description: "Permission to impersonate users",
+        category: "users"
+      });
+    } catch (error) {
+      console.log("Impersonation permission already exists");
+    }
 
     console.log("Seeding complete!");
   }

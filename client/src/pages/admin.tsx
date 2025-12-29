@@ -1,4 +1,3 @@
-import { Layout } from "@/components/layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,206 +140,199 @@ export default function Admin() {
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
 
   return (
-      <div className="space-y-8">
-        <div className="bg-gradient-to-r from-primary to-indigo-600 rounded-2xl p-8 text-white">
-          <h1 className="text-3xl font-bold font-display">Admin Dashboard</h1>
-          <p className="text-primary-foreground/80 mt-2">
-            Manage your delivery service operations
-          </p>
-        </div>
+    <div className="space-y-8">
 
-        {/* General Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <StatCard title="Total Users" value={totalUsers} icon={Users} trend={calculateTrend(totalUsers, totalUsers * 0.9)} />
-          <StatCard title="Total Stores" value={totalStores} icon={ShoppingBag} trend={calculateTrend(totalStores, totalStores * 0.95)} />
-          <StatCard title="Total Drivers" value={totalDrivers} icon={Truck} trend={calculateTrend(totalDrivers, totalDrivers * 0.92)} />
-          <StatCard title="Total Vehicles" value={totalVehicles} icon={Car} trend={calculateTrend(totalVehicles, totalVehicles * 0.9)} />
-          <StatCard title="Total Categories" value={totalCategories} icon={Tag} trend={calculateTrend(totalCategories, totalCategories * 0.98)} />
-          <StatCard title="Total Products" value={totalProducts} icon={Package} trend={calculateTrend(totalProducts, totalProducts * 0.85)} />
-        </div>
-
-        {/* Booking Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <StatCard title="Total Bookings" value={totalBookings} icon={ShoppingBag} trend={ordersTrend} />
-          <StatCard title="Completed" value={totalCompleted} icon={CheckCircle} trend={calculateTrend(totalCompleted, totalCompleted * 0.88)} />
-          <StatCard title="In Progress" value={totalOrdersInProgress} icon={Clock} trend={calculateTrend(totalOrdersInProgress, totalOrdersInProgress * 0.95)} />
-          <StatCard title="Cancelled" value={totalCancelled} icon={XCircle} trend={calculateTrend(totalCancelled, totalCancelled * 1.1)} />
-        </div>
-
-        {/* Financial Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Total Earnings" value={`$${totalEarnings.toFixed(2)}`} icon={DollarSign} trend={calculateTrend(totalEarnings, totalEarnings * 0.85)} />
-          <StatCard title="Net Profit" value={`$${totalNetProfit.toFixed(2)}`} icon={TrendingUp} trend={calculateTrend(totalNetProfit, totalNetProfit * 0.85)} />
-          <StatCard title="Customer Balance" value={`$${totalMoneyInCustomerAccounts.toFixed(2)}`} icon={Wallet} trend={calculateTrend(totalMoneyInCustomerAccounts, totalMoneyInCustomerAccounts * 0.9)} />
-          <StatCard title="Driver Balance" value={`$${totalMoneyInDriverAccounts.toFixed(2)}`} icon={Wallet} trend={calculateTrend(totalMoneyInDriverAccounts, totalMoneyInDriverAccounts * 0.95)} />
-        </div>
-
-        {/* Dashboard Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Weekly Orders Chart */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Weekly Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyOrdersData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{fill: 'transparent'}} />
-                    <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Selling Services */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Top Selling Services</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={topSellingServices}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {topSellingServices.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Additional Dashboard Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Latest Orders */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Latest Orders</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {latestOrders.map((order, i) => (
-                  <div key={i} className="flex items-center justify-between border-b border-border/50 pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
-                        ORD
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Order #{order.id || `REQ-${1000 + i}`}</p>
-                        <p className="text-xs text-muted-foreground">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '2 minutes ago'}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-1 rounded-full capitalize">{order.status || 'New'}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Latest Drivers */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Latest Drivers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {latestDrivers.map((driver, i) => (
-                  <div key={i} className="flex items-center justify-between border-b border-border/50 pb-3 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-xs">
-                        DR
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{driver.fullName || `Driver ${i + 1}`}</p>
-                        <p className="text-xs text-muted-foreground">{driver.status || 'online'}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">{driver.vehicleType || 'Active'}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DashboardCard
-            title="Orders Management"
-            description="View all orders with filters and lifecycle controls"
-            link="/admin/orders"
-          />
-          <DashboardCard
-            title="Driver Management"
-            description="Manage drivers, their status, and vehicle assignments"
-            link="/admin/drivers"
-          />
-          <DashboardCard
-            title="Zones & Pricing"
-            description="Set up zones and pricing for different services"
-            link="/admin/zones"
-          />
-          <DashboardCard
-            title="User Management"
-            description="Manage all users including customers, drivers, and staff"
-            link="/admin/users"
-          />
-          <DashboardCard
-            title="Payment Management"
-            description="Handle payments, deposits, withdrawals, and commissions"
-            link="/admin/payments"
-          />
-          <DashboardCard
-            title="Notifications"
-            description="Manage system notifications and alerts"
-            link="/admin/notifications"
-          />
-          <DashboardCard
-            title="Admin Settings"
-            description="Configure system settings and preferences"
-            link="/admin/settings"
-          />
-          <DashboardCard
-            title="Sub-Admin Management"
-            description="Create and manage sub-admin accounts with permissions"
-            link="/admin/subadmins"
-          />
-          <DashboardCard
-            title="Ratings & Reviews"
-            description="View and manage customer ratings and reviews"
-            link="/admin/ratings"
-          />
-          <DashboardCard
-            title="Help Center"
-            description="Manage help center content and support tickets"
-            link="/admin/help"
-          />
-          <DashboardCard
-            title="SEO Settings"
-            description="Configure SEO settings for your platform"
-            link="/admin/seo"
-          />
-        </div>
+      {/* General Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <StatCard title="Total Users" value={totalUsers} icon={Users} trend={calculateTrend(totalUsers, totalUsers * 0.9)} />
+        <StatCard title="Total Stores" value={totalStores} icon={ShoppingBag} trend={calculateTrend(totalStores, totalStores * 0.95)} />
+        <StatCard title="Total Drivers" value={totalDrivers} icon={Truck} trend={calculateTrend(totalDrivers, totalDrivers * 0.92)} />
+        <StatCard title="Total Vehicles" value={totalVehicles} icon={Car} trend={calculateTrend(totalVehicles, totalVehicles * 0.9)} />
+        <StatCard title="Total Categories" value={totalCategories} icon={Tag} trend={calculateTrend(totalCategories, totalCategories * 0.98)} />
+        <StatCard title="Total Products" value={totalProducts} icon={Package} trend={calculateTrend(totalProducts, totalProducts * 0.85)} />
       </div>
-    </Layout>
+
+      {/* Booking Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <StatCard title="Total Bookings" value={totalBookings} icon={ShoppingBag} trend={ordersTrend} />
+        <StatCard title="Completed" value={totalCompleted} icon={CheckCircle} trend={calculateTrend(totalCompleted, totalCompleted * 0.88)} />
+        <StatCard title="In Progress" value={totalOrdersInProgress} icon={Clock} trend={calculateTrend(totalOrdersInProgress, totalOrdersInProgress * 0.95)} />
+        <StatCard title="Cancelled" value={totalCancelled} icon={XCircle} trend={calculateTrend(totalCancelled, totalCancelled * 1.1)} />
+      </div>
+
+      {/* Financial Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Earnings" value={`$${totalEarnings.toFixed(2)}`} icon={DollarSign} trend={calculateTrend(totalEarnings, totalEarnings * 0.85)} />
+        <StatCard title="Net Profit" value={`$${totalNetProfit.toFixed(2)}`} icon={TrendingUp} trend={calculateTrend(totalNetProfit, totalNetProfit * 0.85)} />
+        <StatCard title="Customer Balance" value={`$${totalMoneyInCustomerAccounts.toFixed(2)}`} icon={Wallet} trend={calculateTrend(totalMoneyInCustomerAccounts, totalMoneyInCustomerAccounts * 0.9)} />
+        <StatCard title="Driver Balance" value={`$${totalMoneyInDriverAccounts.toFixed(2)}`} icon={Wallet} trend={calculateTrend(totalMoneyInDriverAccounts, totalMoneyInDriverAccounts * 0.95)} />
+      </div>
+
+      {/* Dashboard Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Weekly Orders Chart */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Weekly Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyOrdersData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{fill: 'transparent'}} />
+                  <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Selling Services */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Top Selling Services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={topSellingServices}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {topSellingServices.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Dashboard Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Latest Orders */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Latest Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {latestOrders.map((order, i) => (
+                <div key={i} className="flex items-center justify-between border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
+                      ORD
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Order #{order.id || `REQ-${1000 + i}`}</p>
+                      <p className="text-xs text-muted-foreground">{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '2 minutes ago'}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-1 rounded-full capitalize">{order.status || 'New'}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Latest Drivers */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Latest Drivers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {latestDrivers.map((driver, i) => (
+                <div key={i} className="flex items-center justify-between border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-xs">
+                      DR
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{driver.fullName || `Driver ${i + 1}`}</p>
+                      <p className="text-xs text-muted-foreground">{driver.status || 'online'}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full capitalize">{driver.vehicleType || 'Active'}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <DashboardCard
+          title="Orders Management"
+          description="View all orders with filters and lifecycle controls"
+          link="/admin/orders"
+        />
+        <DashboardCard
+          title="Driver Management"
+          description="Manage drivers, their status, and vehicle assignments"
+          link="/admin/drivers"
+        />
+        <DashboardCard
+          title="Zones & Pricing"
+          description="Set up zones and pricing for different services"
+          link="/admin/zones"
+        />
+        <DashboardCard
+          title="User Management"
+          description="Manage all users including customers, drivers, and staff"
+          link="/admin/users"
+        />
+        <DashboardCard
+          title="Payment Management"
+          description="Handle payments, deposits, withdrawals, and commissions"
+          link="/admin/payments"
+        />
+        <DashboardCard
+          title="Notifications"
+          description="Manage system notifications and alerts"
+          link="/admin/notifications"
+        />
+        <DashboardCard
+          title="Admin Settings"
+          description="Configure system settings and preferences"
+          link="/admin/settings"
+        />
+        <DashboardCard
+          title="Sub-Admin Management"
+          description="Create and manage sub-admin accounts with permissions"
+          link="/admin/subadmins"
+        />
+        <DashboardCard
+          title="Ratings & Reviews"
+          description="View and manage customer ratings and reviews"
+          link="/admin/ratings"
+        />
+        <DashboardCard
+          title="Help Center"
+          description="Manage help center content and support tickets"
+          link="/admin/help"
+        />
+        <DashboardCard
+          title="SEO Settings"
+          description="Configure SEO settings for your platform"
+          link="/admin/seo"
+        />
+      </div>
+    </div>
   );
 }
 

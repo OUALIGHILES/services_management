@@ -63,7 +63,7 @@ export default function AdminPayments() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <h2 className="text-2xl font-bold font-display">Payment Management</h2>
+        <div></div>
         <div className="flex gap-2">
           <Button variant="outline">
             <Filter className="w-4 h-4 mr-2" />

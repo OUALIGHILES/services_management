@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type InsertUser } from "@shared/routes"; // Mock import based on manifest
+import { insertUserSchema } from "@shared/schema";
+type InsertUser = typeof insertUserSchema._type;
 import { User } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 

@@ -10,7 +10,23 @@ import {
 } from './schema';
 
 // Create a custom schema for subcategory creation that excludes categoryId since it comes from URL parameter
-const insertSubcategoryWithoutCategoryIdSchema = insertSubcategorySchema.omit({ categoryId: true });
+// Define a more specific schema for the name field with proper validation
+const nameSchema = z.object({
+  en: z.string().min(2, "English name must be at least 2 characters").max(255, "English name must be at most 255 characters"),
+  ar: z.string().min(2, "Arabic name must be at least 2 characters").max(255, "Arabic name must be at most 255 characters"),
+  ur: z.string().min(2, "Urdu name must be at least 2 characters").max(255, "Urdu name must be at most 255 characters"),
+});
+
+const descriptionSchema = z.object({
+  en: z.string().max(1000, "English description must be at most 1000 characters").optional().or(z.literal("")),
+  ar: z.string().max(1000, "Arabic description must be at most 1000 characters").optional().or(z.literal("")),
+  ur: z.string().max(1000, "Urdu description must be at most 1000 characters").optional().or(z.literal("")),
+});
+
+const insertSubcategoryWithoutCategoryIdSchema = insertSubcategorySchema.omit({ categoryId: true, id: true, createdAt: true }).extend({
+  name: nameSchema,
+  description: descriptionSchema.optional(),
+});
 
 export const errorSchemas = {
   validation: z.object({
@@ -26,6 +42,55 @@ export const errorSchemas = {
   unauthorized: z.object({
     message: z.string(),
   }),
+};
+
+export const impersonation = {
+  start: {
+    method: 'POST' as const,
+    path: '/api/impersonate/user/:userId',
+    responses: {
+      200: z.object({
+        message: z.string(),
+        targetUser: z.custom<typeof users.$inferSelect>(),
+      }),
+      400: errorSchemas.validation,
+      403: errorSchemas.unauthorized,
+      404: errorSchemas.notFound,
+      500: errorSchemas.internal,
+    },
+  },
+  stop: {
+    method: 'POST' as const,
+    path: '/api/impersonate/stop',
+    responses: {
+      200: z.object({
+        message: z.string(),
+        originalUser: z.custom<typeof users.$inferSelect>(),
+      }),
+      400: errorSchemas.validation,
+      500: errorSchemas.internal,
+    },
+  },
+  status: {
+    method: 'GET' as const,
+    path: '/api/impersonate/status',
+    responses: {
+      200: z.object({
+        isImpersonating: z.boolean(),
+        originalUser: z.object({
+          id: z.string(),
+          fullName: z.string(),
+          role: z.string(),
+        }).optional(),
+        targetUser: z.object({
+          id: z.string(),
+          role: z.string(),
+        }).optional(),
+        startedAt: z.string().optional(),
+      }),
+      500: errorSchemas.internal,
+    },
+  },
 };
 
 export const api = {
@@ -247,7 +312,10 @@ export const api = {
     update: {
       method: 'PATCH' as const,
       path: '/api/subcategories/:id',
-      input: insertSubcategorySchema.partial(),
+      input: insertSubcategorySchema.omit({ id: true, createdAt: true }).partial().extend({
+        name: nameSchema.optional(),
+        description: descriptionSchema.optional(),
+      }),
       responses: { 200: z.custom<typeof subcategories.$inferSelect>() },
     },
     delete: {
@@ -386,7 +454,9 @@ export const api = {
       responses: { 200: z.void() },
     },
   },
+  impersonation, // Add impersonation to the main api object
 };
+
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
   let url = path;

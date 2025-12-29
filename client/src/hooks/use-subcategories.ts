@@ -50,7 +50,7 @@ export function useCreateSubcategory() {
         } catch (e) {
           // If we can't parse the error response, use the status text
           errorMessage = res.statusText || errorMessage;
-          errorDetails = { statusText: res.statusText, status: res.status };
+          errorDetails = { statusText: res.statusText, status: res.status, error: e };
         }
         console.error("Subcategory creation error details:", {
           status: res.status,
@@ -59,6 +59,14 @@ export function useCreateSubcategory() {
           errorDetails,
           url: res.url
         });
+
+        // Provide more specific error message for common issues
+        if (res.status === 400) {
+          if (errorMessage.toLowerCase().includes('required') || errorMessage.toLowerCase().includes('name')) {
+            errorMessage = "Validation Error: Required fields are missing or invalid. Please ensure all name fields (English, Arabic, Urdu) are properly filled with valid text.";
+          }
+        }
+
         throw new Error(errorMessage);
       }
       return res.json();
@@ -97,7 +105,7 @@ export function useUpdateSubcategory() {
         } catch (e) {
           // If we can't parse the error response, use the status text
           errorMessage = res.statusText || errorMessage;
-          errorDetails = { statusText: res.statusText, status: res.status };
+          errorDetails = { statusText: res.statusText, status: res.status, error: e };
         }
         console.error("Subcategory update error details:", {
           status: res.status,
@@ -106,6 +114,14 @@ export function useUpdateSubcategory() {
           errorDetails,
           url: res.url
         });
+
+        // Provide more specific error message for common issues
+        if (res.status === 400) {
+          if (errorMessage.toLowerCase().includes('required') || errorMessage.toLowerCase().includes('name')) {
+            errorMessage = "Validation Error: Required fields are missing or invalid. Please ensure all name fields (English, Arabic, Urdu) are properly filled with valid text.";
+          }
+        }
+
         throw new Error(errorMessage);
       }
       return res.json();
@@ -143,7 +159,7 @@ export function useDeleteSubcategory() {
         } catch (e) {
           // If we can't parse the error response, use the status text
           errorMessage = res.statusText || errorMessage;
-          errorDetails = { statusText: res.statusText, status: res.status };
+          errorDetails = { statusText: res.statusText, status: res.status, error: e };
         }
         console.error("Subcategory delete error details:", {
           status: res.status,
@@ -152,6 +168,14 @@ export function useDeleteSubcategory() {
           errorDetails,
           url: res.url
         });
+
+        // Provide more specific error message for common issues
+        if (res.status === 400) {
+          if (errorMessage.toLowerCase().includes('required') || errorMessage.toLowerCase().includes('name')) {
+            errorMessage = "Validation Error: Required fields are missing or invalid. Please ensure all name fields (English, Arabic, Urdu) are properly filled with valid text.";
+          }
+        }
+
         throw new Error(errorMessage);
       }
       return res.json();

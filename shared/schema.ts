@@ -206,6 +206,17 @@ export const adminSettings = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const impersonationLogs = pgTable("impersonation_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  adminId: uuid("admin_id").references(() => users.id).notNull(),
+  targetUserId: uuid("target_user_id").references(() => users.id).notNull(),
+  targetUserRole: text("target_user_role", { enum: ["customer", "driver", "admin", "subadmin"] }).notNull(),
+  action: text("action", { enum: ["start", "stop"] }).notNull(), // start or stop impersonation
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const stores = pgTable("stores", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -331,6 +342,17 @@ export const storesRelations = relations(stores, ({ one }) => ({
 
 export const homeBannersRelations = relations(homeBanners, () => ({}));
 
+export const impersonationLogsRelations = relations(impersonationLogs, ({ one }) => ({
+  admin: one(users, {
+    fields: [impersonationLogs.adminId],
+    references: [users.id],
+  }),
+  targetUser: one(users, {
+    fields: [impersonationLogs.targetUserId],
+    references: [users.id],
+  }),
+}));
+
 
 // === INSERT SCHEMAS ===
 
@@ -355,6 +377,8 @@ export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, modifiedAt: true });
 export const insertHomeBannerSchema = createInsertSchema(homeBanners).omit({ id: true, createdAt: true, modifiedAt: true });
 export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, createdAt: true, modifiedAt: true });
+
+export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });
 
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
@@ -395,4 +419,6 @@ export type HomeBanner = typeof homeBanners.$inferSelect;
 export type InsertHomeBanner = z.infer<typeof insertHomeBannerSchema>;
 export type Store = typeof stores.$inferSelect;
 export type InsertStore = z.infer<typeof insertStoreSchema>;
+export type ImpersonationLog = typeof impersonationLogs.$inferSelect;
+export type InsertImpersonationLog = z.infer<typeof insertImpersonationLogSchema>;
 

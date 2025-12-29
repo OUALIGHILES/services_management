@@ -34,7 +34,6 @@ export default function AdminSettings() {
 
   return (
     <div className="space-y-8">
-      <h2 className="text-2xl font-bold font-display">Admin Settings</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-6">

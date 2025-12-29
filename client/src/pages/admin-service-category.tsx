@@ -373,28 +373,44 @@ export default function AdminServiceCategory() {
   // Handle subcategory form submission
   const handleSubcategorySubmit = async (data: z.infer<typeof subcategorySchema>) => {
     try {
-      // Prepare the name object ensuring all required fields are present
+      // Prepare the name object ensuring all required fields are present and have minimum length
       const nameObj = {
-        en: data.nameEn?.trim() || "",
-        ar: data.nameAr?.trim() || "",
-        ur: data.nameUr?.trim() || ""
+        en: (data.nameEn?.trim() || "").substring(0, 255), // Limit length and ensure it's a string
+        ar: (data.nameAr?.trim() || "").substring(0, 255),
+        ur: (data.nameUr?.trim() || "").substring(0, 255)
       };
 
-      // Validate that required name fields are not empty
-      if (!nameObj.en || !nameObj.ar || !nameObj.ur) {
-        alert('All name fields (English, Arabic, Urdu) are required and cannot be empty.');
+      // Validate that required name fields are not empty and have minimum length
+      if (!nameObj.en || nameObj.en.length < 2) {
+        alert('English name is required and must be at least 2 characters long.');
+        return;
+      }
+      if (!nameObj.ar || nameObj.ar.length < 2) {
+        alert('Arabic name is required and must be at least 2 characters long.');
+        return;
+      }
+      if (!nameObj.ur || nameObj.ur.length < 2) {
+        alert('Urdu name is required and must be at least 2 characters long.');
         return;
       }
 
       // Prepare the description object
       const descriptionObj = {
-        en: data.descriptionEn?.trim() || "",
-        ar: data.descriptionAr?.trim() || "",
-        ur: data.descriptionUr?.trim() || ""
+        en: (data.descriptionEn?.trim() || "").substring(0, 1000),
+        ar: (data.descriptionAr?.trim() || "").substring(0, 1000),
+        ur: (data.descriptionUr?.trim() || "").substring(0, 1000)
       };
+
+      // Log the data being sent for debugging
+      console.log("Sending subcategory data:", {
+        name: nameObj,
+        description: descriptionObj,
+        active: data.status === 'active'
+      });
 
       if (editingSubcategory) {
         // Update existing subcategory
+        console.log("Updating subcategory with ID:", editingSubcategory.id);
         await updateSubcategoryMutation.mutateAsync({
           id: editingSubcategory.id,
           name: nameObj,
@@ -408,6 +424,7 @@ export default function AdminServiceCategory() {
           return;
         }
 
+        console.log("Creating new subcategory for category ID:", selectedCategoryForSubcategory);
         await createSubcategoryMutation.mutateAsync({
           categoryId: selectedCategoryForSubcategory,
           name: nameObj,
@@ -423,7 +440,13 @@ export default function AdminServiceCategory() {
       console.error('Error saving subcategory:', error);
       // Check if it's an error from the mutation with a message
       if (error instanceof Error) {
-        alert(`An error occurred while saving the subcategory: ${error.message}`);
+        // Provide more specific error information
+        const errorMessage = error.message;
+        if (errorMessage.includes("Required")) {
+          alert(`Validation Error: Please make sure all name fields (English, Arabic, Urdu) are filled with at least 2 characters each. Error: ${errorMessage}`);
+        } else {
+          alert(`An error occurred while saving the subcategory: ${errorMessage}`);
+        }
       } else {
         alert('An error occurred while saving the subcategory');
       }
