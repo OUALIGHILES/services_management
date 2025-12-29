@@ -723,7 +723,14 @@ export async function registerRoutes(
       }
 
       // Get the target user
-      const targetUser = await storage.getUser(userId);
+      let targetUser;
+      try {
+        targetUser = await storage.getUser(userId);
+      } catch (getUserError) {
+        console.error("Error getting target user:", getUserError);
+        return res.status(500).json({ message: "Error retrieving target user" });
+      }
+
       if (!targetUser) {
         console.log("Target user not found:", userId);
         return res.status(404).json({ message: "User not found" });

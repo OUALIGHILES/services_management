@@ -32,11 +32,20 @@ async function setupImpersonationPermissions() {
       console.log(`Assigning impersonation permission to admin: ${admin.fullName} (${admin.id})`);
       
       // Check if the permission is already assigned
+      const permission = await db.select({ id: permissions.id })
+        .from(permissions)
+        .where(eq(permissions.name, impersonationPermissionName));
+
+      if (permission.length === 0) {
+        console.log(`Permission ${impersonationPermissionName} not found for admin ${admin.id}`);
+        continue; // Skip this admin if permission doesn't exist
+      }
+
       const existingAssignment = await db.select()
         .from(subAdminPermissions)
         .where(and(
           eq(subAdminPermissions.userId, admin.id),
-          eq(subAdminPermissions.permissionId, impersonationPermissionName) // This might not work as expected
+          eq(subAdminPermissions.permissionId, permission[0].id)
         ));
       
       if (existingAssignment.length === 0) {

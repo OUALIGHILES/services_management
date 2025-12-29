@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { getDb } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
@@ -126,6 +126,7 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User
   async getUser(id: string): Promise<User | undefined> {
+    const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
