@@ -132,17 +132,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
+    const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.email, username));
     return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    const db = getDb();
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getAllUsers(role?: string): Promise<User[]> {
     try {
+      const db = getDb();
       if (role) {
         return await db.select().from(users).where(eq(users.role, role));
       }
@@ -155,6 +158,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const db = getDb();
     const [updatedUser] = await db.update(users)
       .set(updates)
       .where(eq(users.id, id))
@@ -165,6 +169,7 @@ export class DatabaseStorage implements IStorage {
   // Permissions
   async createPermission(insertPermission: InsertPermission): Promise<Permission> {
     try {
+      const db = getDb();
       const [permission] = await db.insert(permissions).values(insertPermission).returning();
       return permission;
     } catch (error) {
@@ -175,6 +180,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPermission(id: string): Promise<Permission | undefined> {
     try {
+      const db = getDb();
       const [permission] = await db.select().from(permissions).where(eq(permissions.id, id));
       return permission;
     } catch (error) {
@@ -185,6 +191,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPermissionByName(name: string): Promise<Permission | undefined> {
     try {
+      const db = getDb();
       const [permission] = await db.select().from(permissions).where(eq(permissions.name, name));
       return permission;
     } catch (error) {
@@ -195,6 +202,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPermissions(): Promise<Permission[]> {
     try {
+      const db = getDb();
       return await db.select().from(permissions);
     } catch (error) {
       console.error("Database error in getAllPermissions:", error);
@@ -204,6 +212,7 @@ export class DatabaseStorage implements IStorage {
 
   async assignPermissionToSubAdmin(userId: string, permissionId: string): Promise<SubAdminPermission> {
     try {
+      const db = getDb();
       const [subAdminPermission] = await db.insert(subAdminPermissions)
         .values({ userId, permissionId })
         .onConflictDoNothing() // Avoid duplicate assignments
@@ -217,6 +226,7 @@ export class DatabaseStorage implements IStorage {
 
   async removePermissionFromSubAdmin(userId: string, permissionId: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(subAdminPermissions)
         .where(
           and(
@@ -233,6 +243,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSubAdminPermissions(userId: string): Promise<Permission[]> {
     try {
+      const db = getDb();
       const result = await db.select({ permission: permissions })
         .from(subAdminPermissions)
         .innerJoin(permissions, eq(subAdminPermissions.permissionId, permissions.id))
@@ -246,6 +257,7 @@ export class DatabaseStorage implements IStorage {
 
   async hasSubAdminPermission(userId: string, permissionName: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.select({ count: db.$count() })
         .from(subAdminPermissions)
         .innerJoin(permissions, eq(subAdminPermissions.permissionId, permissions.id))
@@ -265,6 +277,7 @@ export class DatabaseStorage implements IStorage {
   // Driver
   async getDriver(id: string): Promise<Driver | undefined> {
     try {
+      const db = getDb();
       const [driver] = await db.select().from(drivers).where(eq(drivers.id, id));
       return driver;
     } catch (error) {
@@ -275,6 +288,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDriverByUserId(userId: string): Promise<Driver | undefined> {
     try {
+      const db = getDb();
       const [driver] = await db.select().from(drivers).where(eq(drivers.userId, userId));
       return driver;
     } catch (error) {
@@ -285,6 +299,7 @@ export class DatabaseStorage implements IStorage {
 
   async createDriver(insertDriver: InsertDriver): Promise<Driver> {
     try {
+      const db = getDb();
       const [driver] = await db.insert(drivers).values(insertDriver).returning();
       return driver;
     } catch (error) {
@@ -295,6 +310,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateDriver(id: string, updates: Partial<InsertDriver>): Promise<Driver | undefined> {
     try {
+      const db = getDb();
       const [updatedDriver] = await db.update(drivers)
         .set(updates)
         .where(eq(drivers.id, id))
@@ -308,6 +324,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateDriverStatus(id: string, status: string): Promise<Driver> {
     try {
+      const db = getDb();
       const [driver] = await db.update(drivers)
         .set({ status })
         .where(eq(drivers.id, id))
@@ -321,6 +338,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllDrivers(): Promise<(Driver & { user: User })[]> {
     try {
+      const db = getDb();
       // Join with users for display
       const result = await db.select().from(drivers).innerJoin(users, eq(drivers.userId, users.id));
       return result.map(({ drivers, users }) => ({ ...drivers, user: users }));
@@ -333,6 +351,7 @@ export class DatabaseStorage implements IStorage {
   // Driver Documents
   async createDriverDocument(insertDocument: InsertDriverDocument): Promise<DriverDocument> {
     try {
+      const db = getDb();
       const [document] = await db.insert(driverDocuments).values(insertDocument).returning();
       return document;
     } catch (error) {
@@ -343,6 +362,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDriverDocuments(driverId: string): Promise<DriverDocument[]> {
     try {
+      const db = getDb();
       return await db.select().from(driverDocuments).where(eq(driverDocuments.driverId, driverId));
     } catch (error) {
       console.error("Database error in getDriverDocuments:", error);
@@ -352,6 +372,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateDriverDocument(id: string, updates: Partial<InsertDriverDocument>): Promise<DriverDocument | undefined> {
     try {
+      const db = getDb();
       const [updatedDocument] = await db.update(driverDocuments)
         .set(updates)
         .where(eq(driverDocuments.id, id))
@@ -365,6 +386,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDriverDocument(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(driverDocuments).where(eq(driverDocuments.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -376,6 +398,7 @@ export class DatabaseStorage implements IStorage {
   // Vehicle
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     try {
+      const db = getDb();
       const [vehicle] = await db.insert(vehicles).values(insertVehicle).returning();
       return vehicle;
     } catch (error) {
@@ -386,6 +409,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllVehicles(): Promise<Vehicle[]> {
     try {
+      const db = getDb();
       return await db.select().from(vehicles);
     } catch (error) {
       console.error("Database error in getAllVehicles:", error);
@@ -396,6 +420,7 @@ export class DatabaseStorage implements IStorage {
   // Zone
   async getZone(id: string): Promise<Zone | undefined> {
     try {
+      const db = getDb();
       const [zone] = await db.select().from(zones).where(eq(zones.id, id));
       return zone;
     } catch (error) {
@@ -406,6 +431,7 @@ export class DatabaseStorage implements IStorage {
 
   async createZone(insertZone: InsertZone): Promise<Zone> {
     try {
+      const db = getDb();
       const [zone] = await db.insert(zones).values(insertZone).returning();
       return zone;
     } catch (error) {
@@ -416,6 +442,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateZone(id: string, updates: Partial<InsertZone>): Promise<Zone | undefined> {
     try {
+      const db = getDb();
       const [updatedZone] = await db.update(zones)
         .set(updates)
         .where(eq(zones.id, id))
@@ -429,6 +456,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllZones(): Promise<Zone[]> {
     try {
+      const db = getDb();
       return await db.select().from(zones);
     } catch (error) {
       console.error("Database error in getAllZones:", error);
@@ -439,6 +467,7 @@ export class DatabaseStorage implements IStorage {
   // Service
   async createServiceCategory(insertCategory: InsertServiceCategory): Promise<ServiceCategory> {
     try {
+      const db = getDb();
       const [category] = await db.insert(serviceCategories).values(insertCategory).returning();
       return category;
     } catch (error) {
@@ -449,6 +478,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateServiceCategory(id: string, updates: Partial<InsertServiceCategory>): Promise<ServiceCategory | undefined> {
     try {
+      const db = getDb();
       const [updatedCategory] = await db.update(serviceCategories)
         .set(updates)
         .where(eq(serviceCategories.id, id))
@@ -462,6 +492,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteServiceCategory(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(serviceCategories).where(eq(serviceCategories.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -472,6 +503,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllServiceCategories(): Promise<ServiceCategory[]> {
     try {
+      const db = getDb();
       return await db.select().from(serviceCategories);
     } catch (error) {
       console.error("Database error in getAllServiceCategories:", error);
@@ -481,6 +513,7 @@ export class DatabaseStorage implements IStorage {
 
   async createService(insertService: InsertService): Promise<Service> {
     try {
+      const db = getDb();
       const [service] = await db.insert(services).values(insertService).returning();
       return service;
     } catch (error) {
@@ -491,6 +524,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllServices(): Promise<Service[]> {
     try {
+      const db = getDb();
       return await db.select().from(services);
     } catch (error) {
       console.error("Database error in getAllServices:", error);
@@ -501,6 +535,7 @@ export class DatabaseStorage implements IStorage {
   // Subcategory
   async createSubcategory(insertSubcategory: InsertSubcategory & { categoryId: string }): Promise<Subcategory> {
     try {
+      const db = getDb();
       const [subcategory] = await db.insert(subcategories).values(insertSubcategory).returning();
       return subcategory;
     } catch (error) {
@@ -511,6 +546,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateSubcategory(id: string, updates: Partial<InsertSubcategory>): Promise<Subcategory | undefined> {
     try {
+      const db = getDb();
       const [updatedSubcategory] = await db.update(subcategories)
         .set(updates)
         .where(eq(subcategories.id, id))
@@ -524,6 +560,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSubcategory(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(subcategories).where(eq(subcategories.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -534,6 +571,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSubcategoriesByCategory(categoryId: string): Promise<Subcategory[]> {
     try {
+      const db = getDb();
       return await db.select().from(subcategories).where(eq(subcategories.categoryId, categoryId));
     } catch (error) {
       console.error("Database error in getSubcategoriesByCategory:", error);
@@ -543,6 +581,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSubcategories(): Promise<Subcategory[]> {
     try {
+      const db = getDb();
       return await db.select().from(subcategories);
     } catch (error) {
       console.error("Database error in getAllSubcategories:", error);
@@ -553,6 +592,7 @@ export class DatabaseStorage implements IStorage {
   // Product
   async getProduct(id: string): Promise<Product | undefined> {
     try {
+      const db = getDb();
       const [product] = await db.select().from(products).where(eq(products.id, id));
       return product;
     } catch (error) {
@@ -563,6 +603,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllProducts(): Promise<Product[]> {
     try {
+      const db = getDb();
       return await db.select().from(products);
     } catch (error) {
       console.error("Database error in getAllProducts:", error);
@@ -572,6 +613,7 @@ export class DatabaseStorage implements IStorage {
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
     try {
+      const db = getDb();
       const [product] = await db.insert(products).values(insertProduct).returning();
       return product;
     } catch (error) {
@@ -582,6 +624,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product | undefined> {
     try {
+      const db = getDb();
       const [updatedProduct] = await db.update(products)
         .set({ ...updates, modifiedAt: new Date() })
         .where(eq(products.id, id))
@@ -595,6 +638,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProduct(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(products).where(eq(products.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -606,6 +650,7 @@ export class DatabaseStorage implements IStorage {
   // Order
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     try {
+      const db = getDb();
       const requestNumber = `REQ-${Date.now()}-${Math.floor(Math.random()*1000)}`;
       const [order] = await db.insert(orders).values({ ...insertOrder, requestNumber }).returning();
       return order;
@@ -617,6 +662,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOrder(id: string): Promise<Order | undefined> {
     try {
+      const db = getDb();
       const [order] = await db.select().from(orders).where(eq(orders.id, id));
       return order;
     } catch (error) {
@@ -627,6 +673,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllOrders(): Promise<Order[]> {
     try {
+      const db = getDb();
       return await db.select().from(orders).orderBy(desc(orders.createdAt));
     } catch (error) {
       console.error("Database error in getAllOrders:", error);
@@ -636,6 +683,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
     try {
+      const db = getDb();
       const [order] = await db.update(orders)
         .set({ status })
         .where(eq(orders.id, id))
@@ -649,6 +697,7 @@ export class DatabaseStorage implements IStorage {
 
   async assignDriver(orderId: string, driverId: string): Promise<Order> {
     try {
+      const db = getDb();
       const [order] = await db.update(orders)
         .set({ driverId, status: 'pending' }) // Update status to pending when driver assigned
         .where(eq(orders.id, orderId))
@@ -663,6 +712,7 @@ export class DatabaseStorage implements IStorage {
   // Pricing
   async getPricing(id: string): Promise<Pricing | undefined> {
     try {
+      const db = getDb();
       const [pricing] = await db.select().from(pricing).where(eq(pricing.id, id));
       return pricing;
     } catch (error) {
@@ -673,6 +723,7 @@ export class DatabaseStorage implements IStorage {
 
   async createPricing(insertPricing: InsertPricing): Promise<Pricing> {
     try {
+      const db = getDb();
       const [pricing] = await db.insert(pricing).values(insertPricing).returning();
       return pricing;
     } catch (error) {
@@ -683,6 +734,7 @@ export class DatabaseStorage implements IStorage {
 
   async updatePricing(id: string, updates: Partial<InsertPricing>): Promise<Pricing | undefined> {
     try {
+      const db = getDb();
       const [updatedPricing] = await db.update(pricing)
         .set(updates)
         .where(eq(pricing.id, id))
@@ -696,6 +748,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPricing(): Promise<Pricing[]> {
     try {
+      const db = getDb();
       return await db.select().from(pricing);
     } catch (error) {
       console.error("Database error in getAllPricing:", error);
@@ -706,6 +759,7 @@ export class DatabaseStorage implements IStorage {
   // Notification
   async createNotification(notification: InsertNotification): Promise<Notification> {
     try {
+      const db = getDb();
       const [result] = await db.insert(notifications).values(notification).returning();
       return result;
     } catch (error) {
@@ -716,6 +770,7 @@ export class DatabaseStorage implements IStorage {
 
   async getNotifications(userId: string): Promise<Notification[]> {
     try {
+      const db = getDb();
       return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
     } catch (error) {
       console.error("Database error in getNotifications:", error);
@@ -725,6 +780,7 @@ export class DatabaseStorage implements IStorage {
 
   async getNotification(id: string): Promise<Notification | undefined> {
     try {
+      const db = getDb();
       const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));
       return notification;
     } catch (error) {
@@ -735,6 +791,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateNotification(id: string, updates: Partial<InsertNotification>): Promise<Notification | undefined> {
     try {
+      const db = getDb();
       const [updatedNotification] = await db.update(notifications)
         .set(updates)
         .where(eq(notifications.id, id))
@@ -748,6 +805,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotification(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(notifications).where(eq(notifications.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -759,6 +817,7 @@ export class DatabaseStorage implements IStorage {
   // Home Banner
   async getHomeBanner(id: string): Promise<HomeBanner | undefined> {
     try {
+      const db = getDb();
       const [banner] = await db.select().from(homeBanners).where(eq(homeBanners.id, id));
       return banner;
     } catch (error) {
@@ -769,6 +828,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllHomeBanners(): Promise<HomeBanner[]> {
     try {
+      const db = getDb();
       return await db.select().from(homeBanners).orderBy(homeBanners.position);
     } catch (error) {
       console.error("Database error in getAllHomeBanners:", error);
@@ -778,6 +838,7 @@ export class DatabaseStorage implements IStorage {
 
   async createHomeBanner(insertBanner: InsertHomeBanner): Promise<HomeBanner> {
     try {
+      const db = getDb();
       const [banner] = await db.insert(homeBanners).values(insertBanner).returning();
       return banner;
     } catch (error) {
@@ -788,6 +849,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateHomeBanner(id: string, updates: Partial<InsertHomeBanner>): Promise<HomeBanner | undefined> {
     try {
+      const db = getDb();
       const [updatedBanner] = await db.update(homeBanners)
         .set({ ...updates, modifiedAt: new Date() })
         .where(eq(homeBanners.id, id))
@@ -801,6 +863,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteHomeBanner(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(homeBanners).where(eq(homeBanners.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -812,6 +875,7 @@ export class DatabaseStorage implements IStorage {
   // Store
   async getStore(id: string): Promise<Store | undefined> {
     try {
+      const db = getDb();
       const [store] = await db.select().from(stores).where(eq(stores.id, id));
       return store;
     } catch (error) {
@@ -822,6 +886,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllStores(): Promise<Store[]> {
     try {
+      const db = getDb();
       return await db.select().from(stores);
     } catch (error) {
       console.error("Database error in getAllStores:", error);
@@ -831,6 +896,7 @@ export class DatabaseStorage implements IStorage {
 
   async createStore(insertStore: InsertStore): Promise<Store> {
     try {
+      const db = getDb();
       const [store] = await db.insert(stores).values(insertStore).returning();
       return store;
     } catch (error) {
@@ -841,6 +907,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateStore(id: string, updates: Partial<InsertStore>): Promise<Store | undefined> {
     try {
+      const db = getDb();
       const [updatedStore] = await db.update(stores)
         .set({ ...updates, modifiedAt: new Date() })
         .where(eq(stores.id, id))
@@ -854,6 +921,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteStore(id: string): Promise<boolean> {
     try {
+      const db = getDb();
       const result = await db.delete(stores).where(eq(stores.id, id));
       return result.rowsAffected > 0;
     } catch (error) {
@@ -865,6 +933,7 @@ export class DatabaseStorage implements IStorage {
   // Admin Settings
   async getAdminSetting(key: string): Promise<AdminSetting | undefined> {
     try {
+      const db = getDb();
       const [setting] = await db.select().from(adminSettings).where(eq(adminSettings.key, key));
       return setting;
     } catch (error) {
@@ -876,6 +945,7 @@ export class DatabaseStorage implements IStorage {
   // Impersonation Logs
   async createImpersonationLog(insertLog: InsertImpersonationLog): Promise<ImpersonationLog> {
     try {
+      const db = getDb();
       const [log] = await db.insert(impersonationLogs).values(insertLog).returning();
       return log;
     } catch (error) {
@@ -892,6 +962,7 @@ export class DatabaseStorage implements IStorage {
 
   async getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]> {
     try {
+      const db = getDb();
       let query = db.select().from(impersonationLogs);
 
       if (adminId) {

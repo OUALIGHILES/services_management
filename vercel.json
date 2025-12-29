@@ -11,8 +11,21 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/api/(.*)",
       "dest": "server/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "server/index.ts",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
     }
-  ]
+  ],
+  "functions": {
+    "server/index.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
 }
