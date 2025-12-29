@@ -3,8 +3,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, Calendar, Clock } from "lucide-react";
+import { MapPin, Calendar, Clock, Map, Truck, Star } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 export default function CustomerOrders() {
   const { user } = useAuth();
@@ -15,7 +17,7 @@ export default function CustomerOrders() {
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold font-display">My Orders</h2>
-      
+
       {orders?.length === 0 ? (
         <Card className="bg-muted/30 border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -39,7 +41,7 @@ export default function CustomerOrders() {
                       <span className="font-mono text-sm text-muted-foreground">{order.requestNumber}</span>
                       <StatusBadge status={order.status || "new"} />
                     </div>
-                    
+
                     <div className="flex flex-col gap-1 mt-2">
                       <div className="flex items-center text-sm">
                         <div className="w-2 h-2 bg-green-500 rounded-full mr-2" />
@@ -54,15 +56,37 @@ export default function CustomerOrders() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {order.createdAt && format(new Date(order.createdAt), "MMM d, yyyy")}
-                    </div>
-                    {order.totalAmount && (
-                      <div className="font-bold text-foreground text-lg">
-                        ${order.totalAmount}
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        {order.createdAt && format(new Date(order.createdAt), "MMM d, yyyy")}
                       </div>
+                      {order.totalAmount && (
+                        <div className="font-bold text-foreground text-lg">
+                          ${order.totalAmount}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Track Button for active orders */}
+                    {(order.status === 'pending' || order.status === 'in_progress' || order.status === 'picked_up') && (
+                      <Link href={`/customer/orders/${order.id}/tracking`}>
+                        <Button size="sm" variant="outline">
+                          <Truck className="w-4 h-4 mr-2" />
+                          Track Order
+                        </Button>
+                      </Link>
+                    )}
+
+                    {/* Rate Button for completed orders */}
+                    {order.status === 'delivered' && (
+                      <Link href={`/customer/orders/${order.id}/rate`}>
+                        <Button size="sm" variant="outline">
+                          <Star className="w-4 h-4 mr-2" />
+                          Rate Service
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </div>

@@ -17,6 +17,21 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const permissions = pgTable("permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").unique().notNull(), // e.g., 'order_management', 'driver_management'
+  description: text("description"),
+  category: text("category"), // e.g., 'orders', 'drivers', 'users', 'payments'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const subAdminPermissions = pgTable("sub_admin_permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  permissionId: uuid("permission_id").references(() => permissions.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const vehicles = pgTable("vehicles", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -35,6 +50,21 @@ export const drivers = pgTable("drivers", {
   walletBalance: numeric("wallet_balance").default("0"),
   special: boolean("special").default(false),
   profile: jsonb("profile"),
+  serviceCategory: text("service_category"), // Main service category (e.g., Water Tanker, Sand Transport)
+  subService: text("sub_service"), // Sub-service (e.g., tanker size, delivery type)
+  operatingZones: text("operating_zones").array(), // Array of zone IDs where driver operates
+  documents: jsonb("documents"), // Document information (license, registration, etc.)
+  phone: text("phone"), // Driver's phone number (separate from user phone)
+  profilePhoto: text("profile_photo"), // Driver's profile photo
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const driverDocuments = pgTable("driver_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  driverId: uuid("driver_id").references(() => drivers.id).notNull(),
+  documentType: text("document_type", { enum: ["license", "vehicle_registration", "national_id", "insurance"] }).notNull(),
+  documentUrl: text("document_url").notNull(),
+  verified: boolean("verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -58,12 +88,38 @@ export const serviceCategories = pgTable("service_categories", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const subcategories = pgTable("subcategories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  categoryId: uuid("category_id").references(() => serviceCategories.id).notNull(),
+  name: jsonb("name").notNull(), // {en, ar, ur}
+  description: jsonb("description"),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const services = pgTable("services", {
   id: uuid("id").primaryKey().defaultRandom(),
   categoryId: uuid("category_id").references(() => serviceCategories.id).notNull(),
   name: jsonb("name").notNull(),
   deliveryType: text("delivery_type"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  categoryId: uuid("category_id").references(() => serviceCategories.id).notNull(),
+  name: text("name").notNull(),
+  price: numeric("price").notNull(),
+  discountedPrice: numeric("discounted_price"),
+  color: text("color"),
+  brand: text("brand"),
+  unit: text("unit"),
+  size: text("size"),
+  images: text("images").array(),
+  description: text("description"),
+  modifiedBy: text("modified_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  modifiedAt: timestamp("modified_at").defaultNow(),
 });
 
 export const pricing = pgTable("pricing", {
@@ -85,7 +141,7 @@ export const orders = pgTable("orders", {
   driverId: uuid("driver_id").references(() => drivers.id),
   serviceId: uuid("service_id").references(() => services.id).notNull(),
   subService: text("sub_service"),
-  status: text("status", { enum: ["new", "pending", "in_progress", "delivered", "cancelled"] }).default("new"),
+  status: text("status", { enum: ["new", "pending", "in_progress", "picked_up", "delivered", "cancelled"] }).default("new"),
   paymentMethod: text("payment_method"),
   totalAmount: numeric("total_amount"),
   driverShare: numeric("driver_share"),
@@ -150,6 +206,36 @@ export const adminSettings = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const stores = pgTable("stores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  ownerName: text("owner_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  country: text("country").notNull(),
+  status: text("status", { enum: ["active", "inactive", "pending"] }).default("pending").notNull(),
+  categoryId: uuid("category_id").references(() => serviceCategories.id).notNull(),
+  description: text("description"),
+  rating: numeric("rating").default("0"),
+  totalReviews: integer("total_reviews").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  modifiedAt: timestamp("modified_at").defaultNow(),
+});
+
+export const homeBanners = pgTable("home_banners", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  imageUrl: text("image_url").notNull(),
+  linkUrl: text("link_url"),
+  position: integer("position").notNull(),
+  status: text("status", { enum: ["active", "inactive"] }).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  modifiedAt: timestamp("modified_at").defaultNow(),
+});
+
 
 // === RELATIONS ===
 
@@ -159,6 +245,22 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [drivers.userId],
   }),
   orders: many(orders, { relationName: "customerOrders" }),
+  subAdminPermissions: many(subAdminPermissions),
+}));
+
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  subAdminPermissions: many(subAdminPermissions),
+}));
+
+export const subAdminPermissionsRelations = relations(subAdminPermissions, ({ one }) => ({
+  user: one(users, {
+    fields: [subAdminPermissions.userId],
+    references: [users.id],
+  }),
+  permission: one(permissions, {
+    fields: [subAdminPermissions.permissionId],
+    references: [permissions.id],
+  }),
 }));
 
 export const driversRelations = relations(drivers, ({ one, many }) => ({
@@ -171,6 +273,34 @@ export const driversRelations = relations(drivers, ({ one, many }) => ({
     references: [vehicles.id],
   }),
   orders: many(orders, { relationName: "driverOrders" }),
+  documents: many(driverDocuments),
+}));
+
+export const driverDocumentsRelations = relations(driverDocuments, ({ one }) => ({
+  driver: one(drivers, {
+    fields: [driverDocuments.driverId],
+    references: [drivers.id],
+  }),
+}));
+
+export const serviceCategoriesRelations = relations(serviceCategories, ({ one, many }) => ({
+  subcategories: many(subcategories),
+  services: many(services),
+  products: many(products),
+}));
+
+export const subcategoriesRelations = relations(subcategories, ({ one }) => ({
+  category: one(serviceCategories, {
+    fields: [subcategories.categoryId],
+    references: [serviceCategories.id],
+  }),
+}));
+
+export const productsRelations = relations(products, ({ one }) => ({
+  category: one(serviceCategories, {
+    fields: [products.categoryId],
+    references: [serviceCategories.id],
+  }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -192,14 +322,27 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   messages: many(messages),
 }));
 
+export const storesRelations = relations(stores, ({ one }) => ({
+  category: one(serviceCategories, {
+    fields: [stores.categoryId],
+    references: [serviceCategories.id],
+  }),
+}));
+
+export const homeBannersRelations = relations(homeBanners, () => ({}));
+
 
 // === INSERT SCHEMAS ===
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true, createdAt: true });
+export const insertSubAdminPermissionSchema = createInsertSchema(subAdminPermissions).omit({ id: true, createdAt: true });
 export const insertDriverSchema = createInsertSchema(drivers).omit({ id: true, createdAt: true });
+export const insertDriverDocumentSchema = createInsertSchema(driverDocuments).omit({ id: true, createdAt: true });
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, createdAt: true });
 export const insertZoneSchema = createInsertSchema(zones).omit({ id: true, createdAt: true });
 export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({ id: true, createdAt: true });
+export const insertSubcategorySchema = createInsertSchema(subcategories).omit({ id: true, createdAt: true });
 export const insertServiceSchema = createInsertSchema(services).omit({ id: true, createdAt: true });
 export const insertPricingSchema = createInsertSchema(pricing).omit({ id: true, createdAt: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, requestNumber: true });
@@ -209,17 +352,47 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
 export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, createdAt: true });
 export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({ id: true, updatedAt: true });
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, modifiedAt: true });
+export const insertHomeBannerSchema = createInsertSchema(homeBanners).omit({ id: true, createdAt: true, modifiedAt: true });
+export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, createdAt: true, modifiedAt: true });
 
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type SubAdminPermission = typeof subAdminPermissions.$inferSelect;
+export type InsertSubAdminPermission = z.infer<typeof insertSubAdminPermissionSchema>;
 export type Driver = typeof drivers.$inferSelect;
+export type InsertDriver = z.infer<typeof insertDriverSchema>;
+export type DriverDocument = typeof driverDocuments.$inferSelect;
+export type InsertDriverDocument = z.infer<typeof insertDriverDocumentSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Zone = typeof zones.$inferSelect;
+export type InsertZone = z.infer<typeof insertZoneSchema>;
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
+export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
+export type Subcategory = typeof subcategories.$inferSelect;
+export type InsertSubcategory = z.infer<typeof insertSubcategorySchema>;
 export type Service = typeof services.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type Pricing = typeof pricing.$inferSelect;
+export type InsertPricing = z.infer<typeof insertPricingSchema>;
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Order = typeof orders.$inferSelect;
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderOffer = typeof orderOffers.$inferSelect;
+export type InsertOrderOffer = z.infer<typeof insertOrderOfferSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type HomeBanner = typeof homeBanners.$inferSelect;
+export type InsertHomeBanner = z.infer<typeof insertHomeBannerSchema>;
+export type Store = typeof stores.$inferSelect;
+export type InsertStore = z.infer<typeof insertStoreSchema>;
 

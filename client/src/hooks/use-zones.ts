@@ -1,36 +1,76 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@shared/routes";
-import { Zone, InsertZone } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
+
+export interface Zone {
+  id: string;
+  name: string;
+  address?: string;
+  coords?: any;
+  avgPrice?: string;
+  fixedPrice?: string;
+  createdAt: string;
+}
 
 export function useZones() {
-  return useQuery({
-    queryKey: [api.zones.list.path],
+  return useQuery<Zone[]>({
+    queryKey: ["zones"],
     queryFn: async () => {
-      const res = await fetch(api.zones.list.path);
-      if (!res.ok) throw new Error("Failed to fetch zones");
-      return res.json() as Promise<Zone[]>;
+      const response = await fetch("/api/zones");
+      if (!response.ok) {
+        throw new Error("Failed to fetch zones");
+      }
+      return response.json();
     },
   });
 }
 
 export function useCreateZone() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: InsertZone) => {
-      const res = await fetch(api.zones.create.path, {
+    mutationFn: async (newZone: Omit<Zone, 'id' | 'createdAt'>) => {
+      const response = await fetch("/api/zones", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newZone),
       });
-      if (!res.ok) throw new Error("Failed to create zone");
-      return res.json();
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create zone");
+      }
+
+      return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.zones.list.path] });
-      toast({ title: "Zone Created", description: "New delivery zone added." });
+      queryClient.invalidateQueries({ queryKey: ["zones"] });
+    },
+  });
+}
+
+export function useUpdateZone() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (updatedZone: Zone) => {
+      const response = await fetch(`/api/zones/${updatedZone.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedZone),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update zone");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["zones"] });
     },
   });
 }

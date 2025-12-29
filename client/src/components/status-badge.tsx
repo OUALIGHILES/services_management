@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type StatusType = "new" | "pending" | "in_progress" | "delivered" | "cancelled" | "online" | "offline" | "approved";
+type StatusType = "new" | "pending" | "in_progress" | "picked_up" | "delivered" | "cancelled" | "online" | "offline" | "approved";
 
 export function StatusBadge({ status, className }: { status: string, className?: string }) {
   const variants: Record<string, string> = {

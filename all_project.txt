@@ -1,0 +1,603 @@
+The application is based on seamlessly connecting service providers with customers.
+The customer selects the required service, and different categories are displayed, such as:
+
+Water tankers with different capacities
+
+Sand transport vehicles
+
+Once the service is requested, the order is sent to all registered drivers within the same category.
+Two possible workflows are supported:
+
+Direct acceptance of the order
+
+Offer-based system, where drivers submit price offers
+
+This gives the customer full flexibility to choose the most suitable offer.
+
+The system also ensures smooth communication between the customer and the driver, with the ability to add notes and images.
+At the same time, the administration can easily track and manage all orders from the control panel.
+
+Main Menu Structure
+
+Main Menu
+
+Dashboard
+
+Admin Notifications
+
+Admin Settings
+
+Sub-Admin Details
+
+Settings
+
+Home Panel
+
+Zones
+
+Pricing
+
+Facility Details
+
+Store Category
+
+Admin Products
+
+Service Category
+
+User Details
+
+Store Details
+
+Drivers
+
+All Orders
+
+Payment Management
+
+Ratings & Reviews
+
+Help Center
+
+SEO
+
+Dashboard
+1. General Statistics
+
+Total Users
+
+Total Stores
+
+Total Drivers
+
+Total Vehicles
+
+Total Categories
+
+Total Products
+
+2. Dashboard Overview
+
+Latest Orders
+
+Top Selling Services
+
+Top Selling Stores
+
+Latest Drivers
+
+Top Selling Products
+
+Latest Stores
+
+3. Booking Statistics
+
+Total Bookings
+
+Total Completed
+
+Total Money in Customer Accounts
+
+Total Pending
+
+Total Cancelled
+
+Total Money in Driver Accounts
+
+Total Orders In Progress
+
+Total Earnings
+
+Total Net Profit
+
+Admin Notifications Page
+
+Each notification includes:
+
+Notification Name
+
+Title
+
+Message
+
+Notification Type
+
+Notification Date
+
+Admin Settings
+
+Three main options:
+
+1. Store Show in App
+
+When enabled, the store appears in the user app and becomes visible to customers.
+
+2. Driver Wallet Negative Limit
+
+Defines the maximum negative balance allowed for drivers.
+Example: if set to -100, once the driver reaches this balance, they are automatically blocked from working.
+
+3. Request Distance (Kilometers)
+
+Defines the delivery radius used to determine order eligibility based on distance.
+
+User App Welcome Page
+
+Displays three welcome slides with images and localized text
+
+Shown when the user opens the app for the first time
+
+Supports all available languages
+
+Driver App Welcome Page
+
+Same concept as the user welcome page
+
+Displays a welcome image with localized text
+
+Home Banner
+
+Allows adding custom banner images for the home page
+
+Zone Management
+Edit Zone
+
+Zone Name
+
+Zone Pricing (if applicable)
+
+Map-based zone selection (circle or custom shape)
+
+Latitude & Longitude precision
+
+Note: The map may not always appear perfectly aligned, but zones must be clearly defined.
+
+Zone List
+
+Displays:
+
+Zone Name
+
+Zone Price
+
+Zone Address
+
+Pricing Management
+Pricing List
+
+Includes an “Add New / Edit” button
+
+Opens the Edit Zone Pricing page
+
+Edit Zone Pricing
+
+Fields:
+
+Service Type
+
+Sub-Service Name
+
+Zone Name
+
+Zone Price
+
+Zone Average Price (based on last customer request)
+
+Price Type
+
+Fixed Price
+
+Average Price
+
+Commission
+
+Fixed or Percentage
+
+Can be charged to:
+
+Driver
+
+Customer
+
+Both
+
+After saving, the expected price is shown to the customer.
+
+Vehicle Details
+Vehicle List
+
+Each vehicle includes:
+
+Vehicle Name (English / Arabic / Urdu)
+
+Vehicle Image
+
+Capacity
+
+Base Fare
+
+Price per Kilometer
+
+Actions (Edit / Delete)
+
+Edit Vehicle
+
+Editable fields:
+
+Vehicle name (EN / AR / UR)
+
+Base fare
+
+Price per kilometer
+
+Capacity
+
+Vehicle image
+
+Store Category
+Category List
+
+Category name (EN / AR / UR)
+
+Image
+
+Status (Active / Inactive)
+
+Actions (Edit / Delete)
+
+Add Category
+
+Category names in all languages
+
+Category image
+
+Save option
+
+Admin Products
+
+Product details include:
+
+Category name
+
+Product name
+
+Price
+
+Extra or discounted price
+
+Color
+
+Brand
+
+Unit of measurement
+
+Size
+
+Modified by
+
+Images (1–3)
+
+Description
+
+Created date
+
+Actions (Edit / Delete)
+
+Product editing is currently disabled.
+
+Service Category
+Sections
+
+Service Category List
+
+Main categories
+
+Order priority
+
+Name & description (EN / AR / UR)
+
+Customer notes
+
+Status
+
+Actions
+
+Disabled Categories
+
+Allows reactivation
+
+Edit Category
+
+Add or update main categories
+
+Sub-categories can be added later
+
+Drivers Management
+Driver List
+
+Name
+
+Vehicle
+
+Email
+
+Phone
+
+Availability (Online / Offline)
+
+Edit / Delete
+
+Pending Applications
+
+Approve / Disapprove drivers
+
+Edit driver data
+
+Special Drivers
+
+Drivers assigned to specific tasks
+
+Toggle between Normal and Special
+
+Additional Settings
+
+Service name
+
+Delivery type
+
+Sub-service assignment (e.g., tanker size)
+
+All Orders
+Sections
+
+New Service Requests
+
+New Product Requests (currently disabled)
+
+Ingoing Orders
+
+Delivered Orders
+
+Cancelled Orders
+
+New Service Request Details
+
+Includes:
+
+Request Number
+
+Time since request
+
+Client name & WhatsApp contact
+
+Payment method
+
+Customer notes & edited notes
+
+Driver selection (manual or automatic)
+
+Direct acceptance or offer-based system
+
+Category & sub-category
+
+Offers count & list
+
+Service location (copyable)
+
+Cancellation reason
+
+Current state
+
+Total amount
+
+Order date
+
+Action button (view full details)
+
+Ingoing Orders
+
+Includes:
+
+Request number
+
+Time since creation
+
+Current status
+
+Manual status change
+
+Cancellation info
+
+Customer & staff notes
+
+Chat access
+
+Client & provider info
+
+Amounts & timestamps
+
+Action button
+
+Payment Management
+1. Money & Adjustment
+
+Manual balance changes (bonuses, corrections).
+
+2. Deposit & Withdrawal
+
+Cash or bank withdrawals
+
+Approval workflow
+
+Invoice viewing
+
+3. Financial Balance
+
+Customer balances
+
+Driver balances
+
+Collected commissions
+
+Rating & Review
+
+Feedback number
+
+Customer & driver names
+
+Feedback text
+
+Rating (stars)
+
+Date
+
+Edit / Delete actions
+
+Help Center
+
+Query List
+
+Message Center
+
+Admin can intervene in conversations
+
+SEO (Future Feature)
+
+Landing page SEO settings (not active yet)
+
+Advanced Requirements – All Orders
+1. Roles & Permissions
+
+Admin / Operator
+
+Driver
+
+Customer
+
+Admin acting as Driver or Customer
+
+2. Create Orders on Behalf of Customers
+
+Select customer during order creation
+
+Immediate or scheduled orders
+
+3. Driver Assignment & Acceptance Control
+
+Auto-dispatch by category, sub-category, availability
+
+Assign specific driver
+
+Direct acceptance or offer-based
+
+4. Driver Alert System
+
+Alerts for delayed responses
+
+Push & in-app notifications
+
+Admin-controlled reminders
+
+5. Order Messaging System
+
+Message icon inside each order
+
+Admin can chat as:
+
+Admin
+
+Driver
+
+Customer
+
+All conversations logged
+
+6. Order Filtering
+
+Filter by category & sub-category
+
+7. Order Assignment to Staff
+
+Assign staff per category
+
+Staff sees only assigned orders
+
+8. Full Control Concept
+
+Admin panel must fully manage:
+
+Orders
+
+Communication
+
+Scheduling
+
+Acceptance
+
+Notifications
+
+Assignments
+
+Accounting
+
+All actions must be:
+
+Logged
+
+Auditable
+
+Include:
+
+Who acted
+
+Acting as whom
+
+Timestamp
+
+Message Center Requirements
+
+Live message monitoring
+
+Message categorization
+
+AI-assisted responses
+
+Admin intervention
+
+Instant alerts
+
+Service Category Organization
+
+Structured main & sub-categories
+
+Simple management & display
+
+Region & Investor Management
+
+Services assigned per city
+
+Investors limited to their regions
+
+Financial & operational permissions only
+
+No category editing rights

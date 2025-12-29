@@ -64,8 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return await res.json();
     },
-    onSuccess: () => {
-      toast({ title: "Success", description: "Account created! Please login." });
+    onSuccess: (userData) => {
+      if (userData.role === "driver") {
+        toast({
+          title: "Registration Successful",
+          description: "Registration was successful. Please wait for approval from the administration."
+        });
+      } else {
+        toast({ title: "Success", description: "Account created! Please login." });
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });

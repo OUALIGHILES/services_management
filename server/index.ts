@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes, seedDatabase } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import "dotenv/config";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,8 +61,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
-  await seedDatabase();
+  try {
+    await registerRoutes(httpServer, app);
+    await seedDatabase();
+  } catch (error) {
+    console.error("Database connection error:", error);
+    log("Failed to connect to database. Running in offline mode.");
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -86,14 +92,36 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1", // Use IPv4 localhost for development on Windows
+      reusePort: false, // Disable reusePort on Windows
     },
     () => {
       log(`serving on port ${port}`);
     },
   );
+
+  httpServer.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      const newPort = port + 1;
+      log(`Port ${port} is busy, trying ${newPort}...`);
+      setTimeout(() => {
+        httpServer.listen(
+          {
+            port: newPort,
+            host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1",
+            reusePort: false,
+          },
+          () => {
+            log(`serving on port ${newPort}`);
+          },
+        );
+      }, 1000);
+    } else {
+      console.error(err);
+    }
+  });
 })();

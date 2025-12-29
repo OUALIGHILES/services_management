@@ -1,17 +1,23 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  ShoppingBag, 
-  Truck, 
-  Map, 
-  Settings, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  Truck,
+  Map,
+  Settings,
+  LogOut,
   Menu,
   User,
   Bell,
-  Package
+  Package,
+  DollarSign,
+  Star,
+  Headphones,
+  Search,
+  Store,
+  Monitor
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +26,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useState } from "react";
+import { NotificationDropdown } from "@/components/notification-dropdown";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logoutMutation } = useAuth();
@@ -29,9 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const getLinks = () => {
     if (!user) return [];
     
-    const common = [
-      { href: "/profile", label: "Profile", icon: User },
-    ];
+    const common = [];
 
     if (user.role === "admin" || user.role === "subadmin") {
       return [
@@ -39,7 +44,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
         { href: "/admin/drivers", label: "Drivers", icon: Truck },
         { href: "/admin/zones", label: "Zones", icon: Map },
+        { href: "/admin/users", label: "Users", icon: User },
+        { href: "/admin/payments", label: "Payments", icon: DollarSign },
+        { href: "/admin/notifications", label: "Notifications", icon: Bell },
         { href: "/admin/settings", label: "Settings", icon: Settings },
+        { href: "/admin/subadmins", label: "Sub-Admins", icon: User },
+        { href: "/admin/ratings", label: "Ratings", icon: Star },
+        { href: "/admin/help", label: "Help Center", icon: Headphones },
+        { href: "/admin/seo", label: "SEO", icon: Search },
+        { href: "/admin/store-category", label: "Store Categories", icon: ShoppingBag },
+        { href: "/admin/products", label: "Products", icon: Package },
+        { href: "/admin/service-category", label: "Service Categories", icon: Package },
+        { href: "/admin/store-details", label: "Store Details", icon: Store },
+        { href: "/admin/vehicle-details", label: "Vehicle Details", icon: Truck },
+        { href: "/admin/home-banner", label: "Home Banner", icon: Monitor },
         ...common
       ];
     }
@@ -56,6 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return [
       { href: "/customer", label: "Services", icon: LayoutDashboard },
       { href: "/customer/orders", label: "My Orders", icon: ShoppingBag },
+      { href: "/customer/profile", label: "My Profile", icon: User },
       ...common
     ];
   };
@@ -77,14 +96,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = location === link.href;
-          
+
           return (
             <Link key={link.href} href={link.href}>
               <div
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer group",
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25" 
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
                 onClick={() => setIsMobileOpen(false)}
@@ -98,8 +117,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="p-4 border-t border-border/50">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => logoutMutation.mutate()}
         >
@@ -144,9 +163,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 Hello, {user?.fullName || "Guest"}
               </p>
             </div>
-            <Button variant="outline" size="icon" className="rounded-full">
-              <Bell className="w-4 h-4" />
-            </Button>
+            {user && <NotificationDropdown userId={user.id} />}
           </header>
           {children}
         </div>

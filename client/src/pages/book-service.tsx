@@ -11,15 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Schema
 const orderSchema = z.object({
   serviceId: z.string().min(1, "Service is required"),
+  orderType: z.enum(["direct", "quote"], { required_error: "Order type is required" }),
   pickupAddress: z.string().min(5, "Pickup address is required"),
   dropoffAddress: z.string().min(5, "Dropoff address is required"),
   notes: z.string().optional(),
+  fragile: z.boolean().optional(),
+  gateCode: z.string().optional(),
 });
 
 export default function BookService() {
@@ -28,14 +31,17 @@ export default function BookService() {
   const { data: services } = useServices();
   const { user } = useAuth();
   const createOrder = useCreateOrder();
-  
+
   const form = useForm({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       serviceId: params?.serviceId || "",
+      orderType: "direct",
       pickupAddress: "",
       dropoffAddress: "",
       notes: "",
+      fragile: false,
+      gateCode: "",
     },
   });
 
@@ -53,6 +59,7 @@ export default function BookService() {
         dropoff: { address: data.dropoffAddress, lat: 0, lng: 0 },
       },
       notes: data.notes,
+      subService: data.orderType === "quote" ? "quote_request" : undefined,
       requestNumber: `REQ-${Math.floor(Math.random() * 100000)}`, // Simple generation
     };
 
@@ -74,7 +81,6 @@ export default function BookService() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              
               <FormField
                 control={form.control}
                 name="serviceId"
@@ -95,6 +101,40 @@ export default function BookService() {
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Order Type Selection */}
+              <FormField
+                control={form.control}
+                name="orderType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Order Type</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant={field.value === "direct" ? "default" : "outline"}
+                        onClick={() => field.onChange("direct")}
+                        className="flex flex-col items-center justify-center py-6"
+                      >
+                        <Truck className="w-6 h-6 mb-2" />
+                        <span>Direct Order</span>
+                        <p className="text-xs mt-1 text-muted-foreground">First available driver</p>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "quote" ? "default" : "outline"}
+                        onClick={() => field.onChange("quote")}
+                        className="flex flex-col items-center justify-center py-6"
+                      >
+                        <DollarSign className="w-6 h-6 mb-2" />
+                        <span>Request Quote</span>
+                        <p className="text-xs mt-1 text-muted-foreground">Get quotes from multiple drivers</p>
+                      </Button>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -130,19 +170,62 @@ export default function BookService() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes for Driver</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Fragile item, gate code is 1234, etc." className="resize-none" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Additional Options */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Additional Options</h3>
+
+                <FormField
+                  control={form.control}
+                  name="fragile"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Fragile Items</FormLabel>
+                      </div>
+                      <FormControl>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-muted-foreground">No</span>
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            className="h-5 w-5 rounded border-input bg-background"
+                          />
+                          <span className="text-sm text-muted-foreground">Yes</span>
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="gateCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gate Code / Access Instructions</FormLabel>
+                      <FormControl>
+                        <Input placeholder="1234" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes for Driver</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Fragile item, gate code is 1234, etc." className="resize-none" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="bg-muted/30 p-4 rounded-lg text-sm text-muted-foreground">
                 <p>Estimated Price: <span className="font-bold text-foreground">$15.00 - $20.00</span></p>

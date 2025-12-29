@@ -17,7 +17,7 @@ export function useServices() {
   return useQuery({
     queryKey: [api.services.list.path],
     queryFn: async () => {
-      const res = await fetch(api.services.list.path);
+      const res = await fetch(api.services.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch services");
       return res.json() as Promise<Service[]>;
     },

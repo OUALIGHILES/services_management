@@ -193,6 +193,10 @@ export default function AuthPage() {
                     </Button>
                   </form>
                 </Form>
+
+                <div className="mt-4 text-center text-sm text-muted-foreground">
+                  Are you a driver? <a href="/driver/register" className="text-primary hover:underline">Register as Driver</a>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
