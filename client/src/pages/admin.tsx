@@ -141,7 +141,6 @@ export default function Admin() {
   const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
 
   return (
-    <Layout>
       <div className="space-y-8">
         <div className="bg-gradient-to-r from-primary to-indigo-600 rounded-2xl p-8 text-white">
           <h1 className="text-3xl font-bold font-display">Admin Dashboard</h1>
