@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useUsers } from "@/hooks/use-users";
 import { useDrivers } from "@/hooks/use-drivers";
 import { useVehicles } from "@/hooks/use-vehicles";
+import { useOrders } from "@/hooks/use-orders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ export default function AdminAccountControl() {
   const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useUsers();
   const { data: drivers, isLoading: driversLoading, refetch: refetchDrivers } = useDrivers();
   const { data: vehicles } = useVehicles();
+  const { data: orders } = useOrders();
 
   // Check impersonation status
   const { data: impersonationStatus, isLoading: statusLoading } = useQuery({
@@ -115,15 +117,12 @@ export default function AdminAccountControl() {
       return await res.json();
     },
     onSuccess: (data) => {
-      // After successful impersonation, redirect to the appropriate interface
-      if (data.targetUser.role === 'customer') {
-        window.location.href = '/customer';
-      } else if (data.targetUser.role === 'driver') {
-        window.location.href = '/driver';
-      } else {
-        // For other roles, we might want to redirect differently
-        window.location.href = '/';
-      }
+      // After successful impersonation, invalidate the user query and impersonation status
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      queryClient.invalidateQueries({ queryKey: ['impersonation-status'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+      // Don't redirect, just let the preview panel show
     },
     onError: (error: Error) => {
       alert(`Error starting impersonation: ${error.message}`);
@@ -148,7 +147,10 @@ export default function AdminAccountControl() {
       return await res.json();
     },
     onSuccess: (data) => {
-      // After stopping impersonation, refresh the page to get back to admin view
+      // After stopping impersonation, invalidate the user query and impersonation status
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      queryClient.invalidateQueries({ queryKey: ['impersonation-status'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       window.location.reload();
     },
     onError: (error: Error) => {
@@ -221,6 +223,106 @@ export default function AdminAccountControl() {
 
       {/* Dual View Layout - 50% / 50% Split */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Preview Panel - Shows customer/driver interface when impersonating */}
+        {impersonationStatus?.isImpersonating && (
+          <div className="lg:col-span-2">
+            <Card className="shadow-lg border-2 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {impersonationStatus.targetUser?.role === 'customer' ? (
+                      <Users className="w-5 h-5 text-blue-600" />
+                    ) : (
+                      <Truck className="w-5 h-5 text-green-600" />
+                    )}
+                    <span>Preview: {impersonationStatus.targetUser?.role === 'customer' ? 'Customer' : 'Driver'} Interface</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exitImpersonation}
+                    disabled={stopImpersonation.isPending}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Exit Preview
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-96 overflow-auto border rounded-lg p-4 bg-muted">
+                  {impersonationStatus.targetUser?.role === 'customer' ? (
+                    <div className="space-y-4">
+                      <h3 className="font-bold text-lg">Customer Dashboard Preview</h3>
+                      <p>Welcome, {users?.find(u => u.id === impersonationStatus.targetUser?.id)?.fullName || 'Customer'}!</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">Book Service</h4>
+                          <p className="text-sm text-muted-foreground">Schedule a delivery</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">My Orders</h4>
+                          <p className="text-sm text-muted-foreground">Track your deliveries</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">Profile</h4>
+                          <p className="text-sm text-muted-foreground">Manage account</p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h4 className="font-medium mb-2">Recent Orders</h4>
+                        <div className="space-y-2">
+                          {orders?.filter(order => order.customerId === impersonationStatus.targetUser?.id)
+                                   .slice(0, 3)
+                                   .map((order, index) => (
+                            <div key={order.id} className="bg-white p-3 rounded border">
+                              Order #{order.id?.substring(0, 4).toUpperCase() || `ORD${index+1}`} - {order.status || 'Pending'}
+                            </div>
+                          )) || (
+                            <div className="bg-white p-3 rounded border text-center text-muted-foreground">
+                              No recent orders
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <h3 className="font-bold text-lg">Driver Dashboard Preview</h3>
+                      <p>Welcome, {users?.find(u => u.id === impersonationStatus.targetUser?.id)?.fullName || 'Driver'}!</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">Available Orders</h4>
+                          <p className="text-sm text-muted-foreground">Find new deliveries</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">My Earnings</h4>
+                          <p className="text-sm text-muted-foreground">Track your income</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm">
+                          <h4 className="font-medium">Profile</h4>
+                          <p className="text-sm text-muted-foreground">Manage account</p>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h4 className="font-medium mb-2">Today's Stats</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-white p-3 rounded border">
+                            <p className="text-2xl font-bold">${drivers?.find(d => d.userId === impersonationStatus.targetUser?.id)?.walletBalance || '0.00'}</p>
+                            <p className="text-sm text-muted-foreground">Wallet Balance</p>
+                          </div>
+                          <div className="bg-white p-3 rounded border">
+                            <p className="text-2xl font-bold">{orders?.filter(order => order.driverId === drivers?.find(d => d.userId === impersonationStatus.targetUser?.id)?.id).length || 0}</p>
+                            <p className="text-sm text-muted-foreground">Active Orders</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         {/* Left Section - Customer Accounts */}
         <Card className="shadow-lg">
           <CardHeader>

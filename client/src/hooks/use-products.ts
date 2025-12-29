@@ -5,9 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 
 export function useProducts() {
   return useQuery({
-    queryKey: [api.products?.list?.path || '/api/products'],
+    queryKey: [api.products.list.path],
     queryFn: async () => {
-      const res = await fetch('/api/products', { credentials: "include" });
+      const res = await fetch(api.products.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch products");
       return res.json() as Promise<Product[]>;
     },
@@ -16,9 +16,10 @@ export function useProducts() {
 
 export function useProduct(id: string) {
   return useQuery({
-    queryKey: ['/api/products', id],
+    queryKey: [api.products.get.path, id],
     queryFn: async () => {
-      const res = await fetch(`/api/products/${id}`, { credentials: "include" });
+      const url = buildUrl(api.products.get.path, { id });
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch product");
       return res.json() as Promise<Product>;
     },
@@ -32,7 +33,7 @@ export function useCreateProduct() {
 
   return useMutation({
     mutationFn: async (productData: Omit<InsertProduct, 'id' | 'createdAt' | 'modifiedAt'>) => {
-      const res = await fetch('/api/products', {
+      const res = await fetch(api.products.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productData),
@@ -45,7 +46,7 @@ export function useCreateProduct() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       toast({ title: "Product Created", description: "The product has been created successfully." });
     },
     onError: (err: Error) => {
@@ -60,7 +61,8 @@ export function useUpdateProduct() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<Omit<InsertProduct, 'id' | 'createdAt' | 'modifiedAt'>>) => {
-      const res = await fetch(`/api/products/${id}`, {
+      const url = buildUrl(api.products.update.path, { id });
+      const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -73,7 +75,7 @@ export function useUpdateProduct() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       toast({ title: "Product Updated", description: "The product has been updated successfully." });
     },
     onError: (err: Error) => {
@@ -88,7 +90,8 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/products/${id}`, {
+      const url = buildUrl(api.products.delete.path, { id });
+      const res = await fetch(url, {
         method: "DELETE",
         credentials: "include",
       });
@@ -99,7 +102,7 @@ export function useDeleteProduct() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       toast({ title: "Product Deleted", description: "The product has been deleted successfully." });
     },
     onError: (err: Error) => {

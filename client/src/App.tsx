@@ -15,6 +15,7 @@ import BookService from "@/pages/book-service";
 import CustomerOrders from "@/pages/customer-orders";
 import CustomerProfile from "@/pages/customer-profile";
 import CustomerSubcategories from "@/pages/customer-subcategories";
+import CustomerProducts from "@/pages/customer-products";
 import OrderTracking from "@/pages/order-tracking";
 import RateService from "@/pages/rate-service";
 
@@ -101,6 +102,9 @@ function Router() {
       </Route>
       <Route path="/customer/services/:categoryId/subcategories">
          <ProtectedRoute component={CustomerSubcategories} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/products/:categoryId/:subcategoryId?">
+         <ProtectedRoute component={CustomerProducts} allowedRoles={['customer']} />
       </Route>
       <Route path="/customer/book/:serviceId?">
          <ProtectedRoute component={BookService} allowedRoles={['customer']} />

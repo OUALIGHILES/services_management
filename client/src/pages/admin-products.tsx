@@ -33,12 +33,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useServiceCategories } from "@/hooks/use-service-categories";
+import { useSubcategoriesByCategory } from "@/hooks/use-subcategories";
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/use-products";
 
 // Define the product type
 interface Product {
   id: string;
   categoryId: string;
+  subcategoryId?: string; // Optional field for subcategory association
   categoryName: string;
   name: string;
   price: number;
@@ -57,6 +59,7 @@ interface Product {
 // Form schema for validation
 const productSchema = z.object({
   categoryId: z.string().min(1, "Category is required"),
+  subcategoryId: z.string().optional(),
   name: z.string().min(2, "Product name must be at least 2 characters"),
   price: z.number().min(0, "Price must be a positive number"),
   discountedPrice: z.number().optional(),
@@ -77,6 +80,10 @@ export default function AdminProducts() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  // Get subcategories for the selected category
+  const { data: subcategories, isLoading: subcategoriesLoading } = useSubcategoriesByCategory(selectedCategoryId || "");
 
   // Form setup
   const form = useForm<z.infer<typeof productSchema>>({
@@ -99,6 +106,7 @@ export default function AdminProducts() {
     if (editingProduct) {
       form.reset({
         categoryId: editingProduct.categoryId,
+        subcategoryId: editingProduct.subcategoryId || "", // Assuming there's a subcategoryId field
         name: editingProduct.name,
         price: typeof editingProduct.price === 'string' ? parseFloat(editingProduct.price) : editingProduct.price,
         discountedPrice: editingProduct.discountedPrice ?
@@ -110,9 +118,12 @@ export default function AdminProducts() {
         size: editingProduct.size || "",
         description: editingProduct.description || "",
       });
+      // Set the selected category to load subcategories
+      setSelectedCategoryId(editingProduct.categoryId);
     } else {
       form.reset({
         categoryId: "",
+        subcategoryId: "",
         name: "",
         price: 0,
         discountedPrice: undefined,
@@ -122,6 +133,7 @@ export default function AdminProducts() {
         size: "",
         description: "",
       });
+      setSelectedCategoryId(null);
     }
   }, [editingProduct, form]);
 
@@ -132,6 +144,8 @@ export default function AdminProducts() {
       updateProduct.mutate({
         id: editingProduct.id,
         categoryId: data.categoryId,
+        // Note: Since the products table doesn't have a subcategoryId field in the schema,
+        // we're not including it in the mutation. If needed, the schema would need to be updated.
         name: data.name,
         price: data.price.toString(), // Convert to string for backend
         discountedPrice: data.discountedPrice?.toString(), // Convert to string for backend
@@ -146,6 +160,8 @@ export default function AdminProducts() {
       // Add new product
       createProduct.mutate({
         categoryId: data.categoryId,
+        // Note: Since the products table doesn't have a subcategoryId field in the schema,
+        // we're not including it in the mutation. If needed, the schema would need to be updated.
         name: data.name,
         price: data.price.toString(), // Convert to string for backend
         discountedPrice: data.discountedPrice?.toString(), // Convert to string for backend
@@ -258,12 +274,45 @@ export default function AdminProducts() {
                               <select
                                 className="w-full rounded-md border border-input bg-background px-3 py-2"
                                 value={field.value}
-                                onChange={field.onChange}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  setSelectedCategoryId(e.target.value);
+                                }}
                               >
                                 <option value="">Select a category</option>
                                 {serviceCategories?.map((category) => (
                                   <option key={category.id} value={category.id}>
                                     {category.name.en}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="subcategoryId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Subcategory</FormLabel>
+                            {subcategoriesLoading ? (
+                              <div className="w-full rounded-md border border-input bg-background px-3 py-2 text-muted-foreground">
+                                Loading subcategories...
+                              </div>
+                            ) : (
+                              <select
+                                className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                value={field.value}
+                                onChange={field.onChange}
+                                disabled={!selectedCategoryId || !subcategories || subcategories.length === 0}
+                              >
+                                <option value="">Select a subcategory (optional)</option>
+                                {subcategories?.map((subcategory) => (
+                                  <option key={subcategory.id} value={subcategory.id}>
+                                    {subcategory.name.en}
                                   </option>
                                 ))}
                               </select>
