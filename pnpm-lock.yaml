@@ -98,6 +98,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.60.5
         version: 5.90.12(react@18.3.1)
+      '@types/date-fns':
+        specifier: ^2.5.3
+        version: 2.6.3
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1808,6 +1811,10 @@ packages:
 
   '@types/d3-timer@3.0.2':
     resolution: {integrity: sha512-Ps3T8E8dZDam6fUyNiMkekK3XUsaUEik+idO9/YjPtfj2qruF8tFBXS7XhtE4iIXBLxhmLjP3SXpLhVf21I9Lw==}
+
+  '@types/date-fns@2.6.3':
+    resolution: {integrity: sha512-Ke1lw2Ni1t/wMUoLtKFmSNCLozcTBd6vmMqFP4hRzXn6qzkNt97bPAX0x5Y/c15DP43kKvwW1ycStD5+43jVQA==}
+    deprecated: This is a stub types definition. date-fns provides its own type definitions, so you do not need this installed.
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
@@ -4585,6 +4592,10 @@ snapshots:
   '@types/d3-time@3.0.4': {}
 
   '@types/d3-timer@3.0.2': {}
+
+  '@types/date-fns@2.6.3':
+    dependencies:
+      date-fns: 3.6.0
 
   '@types/estree@1.0.8': {}
 
