@@ -1,20 +1,17 @@
 {
   "version": 2,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "server/index.ts"
+      "source": "/api/:path*",
+      "destination": "/api/server"
     },
     {
-      "src": "/(.*)",
-      "dest": "server/index.ts",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate"
-      }
+      "source": "/:path*",
+      "destination": "/api/server"
     }
   ],
   "functions": {
-    "server/index.ts": {
+    "api/server.js": {
       "maxDuration": 30,
       "memory": 1024
     }
