@@ -6,6 +6,8 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { requireAuth, requireRole, isAdmin, isAdminOrSubAdmin, requireImpersonationPermission } from "./middleware/auth";
 import { InsertNotification } from "@shared/schema";
+import { imageStorage } from "./imageStorage";
+import multer from "multer";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -115,6 +117,48 @@ export async function registerRoutes(
     }
   });
 
+  app.post(api.drivers.updateDriverStatus.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { status, serviceCategory, subService } = req.body;
+
+      // Update driver status and service category if provided
+      const updatedFields: any = { status };
+      if (serviceCategory) updatedFields.serviceCategory = serviceCategory;
+      if (subService) updatedFields.subService = subService;
+
+      const updatedDriver = await storage.updateDriver(req.params.id, updatedFields);
+
+      // Get the user associated with this driver to send notification
+      const user = await storage.getUser(updatedDriver.userId);
+      if (user) {
+        // Create notification for the driver about status change
+        let notificationTitle, notificationMessage;
+        if (req.body.status === 'approved') {
+          notificationTitle = 'Driver Application Approved';
+          notificationMessage = 'Congratulations! Your driver application has been approved. You can now log in and start accepting orders.';
+        } else if (req.body.status === 'offline') {
+          notificationTitle = 'Driver Application Rejected';
+          notificationMessage = 'We regret to inform you that your driver application has been rejected. Please contact administration for more details.';
+        } else {
+          notificationTitle = 'Driver Status Updated';
+          notificationMessage = `Your driver status has been updated to ${req.body.status}.`;
+        }
+
+        await storage.createNotification({
+          userId: user.id,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: 'driver_status',
+        });
+      }
+
+      res.json(updatedDriver);
+    } catch (error) {
+      console.error('Error updating driver status:', error);
+      res.status(500).json({ message: 'Failed to update driver status' });
+    }
+  });
+
   app.patch(api.drivers.update.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
     try {
       const input = api.drivers.update.input.parse(req.body);
@@ -131,7 +175,7 @@ export async function registerRoutes(
 
   // --- Vehicles ---
   app.get(api.vehicles.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    const vehicles = await storage.getAllVehicles();
+    const vehicles = await storage.getVehiclesWithDrivers();
     res.json(vehicles);
   });
 
@@ -188,7 +232,8 @@ export async function registerRoutes(
   });
 
   // --- Products ---
-  app.get(api.products.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get all products
+  app.get(api.products.list.path, async (req, res) => {
     const products = await storage.getAllProducts();
     res.json(products);
   });
@@ -207,7 +252,8 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.products.get.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get a single product
+  app.get(api.products.get.path, async (req, res) => {
     const product = await storage.getProduct(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(product);
@@ -239,12 +285,25 @@ export async function registerRoutes(
     }
   });
 
+  // Get products by subcategory - accessible to all users
+  app.get(api.products.getBySubcategory.path, async (req, res) => {
+    try {
+      const products = await storage.getProductsBySubcategory(req.params.subcategoryId);
+      res.json(products);
+    } catch (err) {
+      console.error("Error getting products by subcategory:", err);
+      res.status(500).json({ message: "Failed to get products by subcategory" });
+    }
+  });
+
   // --- Services ---
-  app.get(api.services.listCategories.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get service categories
+  app.get(api.services.listCategories.path, async (req, res) => {
     const categories = await storage.getAllServiceCategories();
     res.json(categories);
   });
 
+  // Admin routes for managing service categories
   app.post(api.services.listCategories.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
     try {
       const input = api.services.createCategory.input.parse(req.body);
@@ -284,14 +343,28 @@ export async function registerRoutes(
   });
 
   // --- Subcategories ---
-  app.get("/api/subcategories", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get all subcategories
+  app.get("/api/subcategories", async (req, res) => {
     const subcategories = await storage.getAllSubcategories();
     res.json(subcategories);
   });
 
-  app.get("/api/categories/:categoryId/subcategories", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get subcategories by category
+  app.get("/api/categories/:categoryId/subcategories", async (req, res) => {
     const subcategories = await storage.getSubcategoriesByCategory(req.params.categoryId);
     res.json(subcategories);
+  });
+
+  // Public route for customers to get products by category
+  app.get("/api/categories/:categoryId/products", async (req, res) => {
+    const products = await storage.getProductsByCategory(req.params.categoryId);
+    res.json(products);
+  });
+
+  // Public route for customers to get products by subcategory
+  app.get("/api/subcategories/:subcategoryId/products", async (req, res) => {
+    const products = await storage.getProductsBySubcategory(req.params.subcategoryId);
+    res.json(products);
   });
 
   app.post("/api/categories/:categoryId/subcategories", requireAuth, isAdminOrSubAdmin, async (req, res) => {
@@ -348,15 +421,34 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.services.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get all services
+  app.get(api.services.list.path, async (req, res) => {
     const services = await storage.getAllServices();
     res.json(services);
   });
 
   // --- Orders ---
-  app.get(api.orders.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    const orders = await storage.getAllOrders();
-    res.json(orders);
+  // Public route for customers to get their own orders
+  app.get(api.orders.list.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+    // Allow customers to see their own orders, admins to see all orders
+    if (user.role === "customer") {
+      // Filter to only customer's orders
+      const orders = await storage.getAllOrders();
+      const customerOrders = orders.filter(order => order.customerId === user.id);
+      res.json(customerOrders);
+    } else if (user.role === "admin" || user.role === "subadmin") {
+      // Admins can see all orders
+      const orders = await storage.getAllOrders();
+      res.json(orders);
+    } else if (user.role === "driver") {
+      // Drivers can see orders assigned to them
+      const orders = await storage.getAllOrders();
+      const driverOrders = orders.filter(order => order.driverId === user.id);
+      res.json(driverOrders);
+    } else {
+      res.status(403).json({ message: "Insufficient permissions" });
+    }
   });
 
   app.post(api.orders.create.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
@@ -374,17 +466,51 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.orders.get.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  app.get(api.orders.get.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
     const order = await storage.getOrder(req.params.id);
+
     if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Allow customers to see their own orders, admins to see all orders
+    if (user.role === "customer") {
+      if (order.customerId !== user.id) {
+        return res.status(403).json({ message: "Insufficient permissions to access this order" });
+      }
+    } else if (user.role !== "admin" && user.role !== "subadmin") {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+
     res.json(order);
   });
 
-  app.patch(api.orders.update.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP just handling status updates via this generic endpoint
-    // In production, split into specific actions (assign, complete, etc.)
-    const order = await storage.updateOrderStatus(req.params.id, req.body.status!);
-    res.json(order);
+  app.patch(api.orders.update.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const order = await storage.getOrder(req.params.id);
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Check permissions based on user role
+    if (user.role === "customer") {
+      // Customers can only update their own orders (e.g., notes, not status)
+      if (order.customerId !== user.id) {
+        return res.status(403).json({ message: "Insufficient permissions to update this order" });
+      }
+      // For customers, only allow updating specific fields (not status)
+      const allowedUpdates = { ...req.body };
+      // Don't allow customers to update status (admins/drivers should handle that)
+      if (allowedUpdates.status) {
+        delete allowedUpdates.status;
+      }
+      const updatedOrder = await storage.updateOrder(req.params.id, allowedUpdates);
+      res.json(updatedOrder);
+    } else if (user.role === "admin" || user.role === "subadmin") {
+      // Admins can update any order (including status)
+      const updatedOrder = await storage.updateOrderStatus(req.params.id, req.body.status!);
+      res.json(updatedOrder);
+    } else {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
   });
 
   // --- Transactions ---
@@ -419,55 +545,54 @@ export async function registerRoutes(
 
   // --- Ratings ---
   app.get("/api/ratings", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock ratings
-    res.json([
-      {
-        id: "1",
-        orderId: "order1",
-        raterId: "user1",
-        ratedId: "driver1",
-        rating: 5,
-        feedback: "Excellent service! Driver was very professional and delivered on time.",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        orderId: "order2",
-        raterId: "user2",
-        ratedId: "driver2",
-        rating: 4,
-        feedback: "Good service overall, but delivery was slightly delayed.",
-        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-      },
-      {
-        id: "3",
-        orderId: "order3",
-        raterId: "user3",
-        ratedId: "driver1",
-        rating: 3,
-        feedback: "Average service. Could be better.",
-        createdAt: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-      },
-      {
-        id: "4",
-        orderId: "order4",
-        raterId: "user4",
-        ratedId: "driver3",
-        rating: 5,
-        feedback: "Outstanding service! Will definitely use again.",
-        createdAt: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-      },
-    ]);
+    try {
+      const { orderId, raterId, ratedId } = req.query;
+      const ratings = await storage.getRatings(
+        orderId as string | undefined,
+        raterId as string | undefined,
+        ratedId as string | undefined
+      );
+      res.json(ratings);
+    } catch (error) {
+      console.error("Error fetching ratings:", error);
+      res.status(500).json({ message: "Failed to fetch ratings" });
+    }
   });
 
   app.post("/api/ratings", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock rating
-    res.status(201).json({ id: "mock-rating-id", ...req.body });
+    try {
+      const rating = await storage.createRating(req.body);
+      res.status(201).json(rating);
+    } catch (error) {
+      console.error("Error creating rating:", error);
+      res.status(500).json({ message: "Failed to create rating" });
+    }
   });
 
   app.patch("/api/ratings/:id", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock rating
-    res.json({ id: req.params.id, ...req.body });
+    try {
+      const rating = await storage.updateRating(req.params.id, req.body);
+      if (!rating) {
+        return res.status(404).json({ message: "Rating not found" });
+      }
+      res.json(rating);
+    } catch (error) {
+      console.error("Error updating rating:", error);
+      res.status(500).json({ message: "Failed to update rating" });
+    }
+  });
+
+  app.delete("/api/ratings/:id", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteRating(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Rating not found" });
+      }
+      res.json({ message: "Rating deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting rating:", error);
+      res.status(500).json({ message: "Failed to delete rating" });
+    }
   });
 
   // --- Notifications ---
@@ -524,6 +649,165 @@ export async function registerRoutes(
     }
   });
 
+  // --- Image Upload Endpoints ---
+  // Configure multer for image uploads
+  const imageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Accept only image files
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
+
+  // Upload vehicle image
+  app.post("/api/images/vehicle", requireAuth, isAdminOrSubAdmin, imageUpload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const uploadResult = await imageStorage.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        'vehicle-images'
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+      }
+
+      res.json({
+        success: true,
+        url: uploadResult.url,
+        fileName: uploadResult.fileName
+      });
+    } catch (error) {
+      console.error("Vehicle image upload error:", error);
+      res.status(500).json({ message: "Failed to upload vehicle image" });
+    }
+  });
+
+  // Upload product image
+  app.post("/api/images/product", requireAuth, isAdminOrSubAdmin, imageUpload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const uploadResult = await imageStorage.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        'product-images'
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+      }
+
+      res.json({
+        success: true,
+        url: uploadResult.url,
+        fileName: uploadResult.fileName
+      });
+    } catch (error) {
+      console.error("Product image upload error:", error);
+      res.status(500).json({ message: "Failed to upload product image" });
+    }
+  });
+
+  // Upload banner image
+  app.post("/api/images/banner", requireAuth, isAdminOrSubAdmin, imageUpload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const uploadResult = await imageStorage.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        'banner-images'
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+      }
+
+      res.json({
+        success: true,
+        url: uploadResult.url,
+        fileName: uploadResult.fileName
+      });
+    } catch (error) {
+      console.error("Banner image upload error:", error);
+      res.status(500).json({ message: "Failed to upload banner image" });
+    }
+  });
+
+  // Upload user avatar
+  app.post("/api/images/avatar", requireAuth, imageUpload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const uploadResult = await imageStorage.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        'user-avatars'
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+      }
+
+      res.json({
+        success: true,
+        url: uploadResult.url,
+        fileName: uploadResult.fileName
+      });
+    } catch (error) {
+      console.error("Avatar image upload error:", error);
+      res.status(500).json({ message: "Failed to upload avatar image" });
+    }
+  });
+
+  // Upload customer photos for orders
+  app.post("/api/images/customer-photos", requireAuth, imageUpload.single('image'), async (req, res) => {
+    try {
+      // Verify that the user is a customer
+      const user = req.user as any;
+      if (user.role !== 'customer') {
+        return res.status(403).json({ message: "Only customers can upload photos for orders" });
+      }
+
+      const uploadResult = await imageStorage.uploadImage(
+        req.file.buffer,
+        'customer-photos',
+        req.file.originalname,
+        req.file.mimetype
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+      }
+
+      res.json({
+        url: uploadResult.url,
+        fileName: uploadResult.fileName
+      });
+    } catch (error) {
+      console.error("Customer photo upload error:", error);
+      res.status(500).json({ message: "Failed to upload customer photo" });
+    }
+  });
+
   // --- Pricing ---
   app.get(api.pricing.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
     const pricing = await storage.getAllPricing();
@@ -564,7 +848,14 @@ export async function registerRoutes(
   });
 
   // --- Home Banners ---
-  app.get(api.homeBanners.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  // Public route for customers to get home banners
+  app.get(api.homeBanners.list.path, async (req, res) => {
+    const banners = await storage.getAllHomeBanners();
+    res.json(banners);
+  });
+
+  // Admin route for managing home banners
+  app.get("/admin" + api.homeBanners.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
     const banners = await storage.getAllHomeBanners();
     res.json(banners);
   });
@@ -863,103 +1154,132 @@ export async function registerRoutes(
 }
 
 export async function seedDatabase() {
-  const users = await storage.getAllUsers();
-  if (users.length === 0) {
+  // Check if users already exist by checking for admin user
+  const existingAdmin = await storage.getUserByUsername("admin@example.com");
+  if (!existingAdmin) {
     console.log("Seeding database...");
 
-    // 1. Create Users
-    const admin = await storage.createUser({
-      email: "admin@example.com",
-      password: "password123", // In real app, hash this!
-      fullName: "Super Admin",
-      role: "admin",
-      isActive: true,
-      metadata: {},
-      phone: "1234567890"
-    });
-
-    const driverUser = await storage.createUser({
-      email: "driver@example.com",
-      password: "password123",
-      fullName: "John Driver",
-      role: "driver",
-      isActive: true,
-      metadata: {},
-      phone: "0987654321"
-    });
-
-    const customerUser = await storage.createUser({
-      email: "customer@example.com",
-      password: "password123",
-      fullName: "Jane Customer",
-      role: "customer",
-      isActive: true,
-      metadata: {},
-      phone: "1122334455"
-    });
-
-    // 2. Create Vehicle
-    const vehicle = await storage.createVehicle({
-      name: "Water Tanker 5000L",
-      baseFare: "50",
-      pricePerKm: "5",
-      capacity: 5000,
-      images: []
-    });
-
-    // 3. Create Driver Profile
-    await storage.createDriver({
-      userId: driverUser.id,
-      vehicleId: vehicle.id,
-      status: "online",
-      walletBalance: "0",
-      special: false,
-      profile: {}
-    });
-
-    // 4. Create Zones
-    const zone = await storage.createZone({
-      name: "Downtown",
-      address: "City Center",
-      coords: { lat: 24.7136, lng: 46.6753 },
-      avgPrice: "100",
-      fixedPrice: "120"
-    });
-
-    // 5. Create Services
-    const cat = await storage.createServiceCategory({
-      name: { en: "Water Delivery", ar: "توصيل مياه", ur: "پانی کی ترسیل" },
-      description: { en: "Fresh water delivery" },
-      active: true
-    });
-
-    const service = await storage.createService({
-      categoryId: cat.id,
-      name: { en: "5000L Tanker", ar: "صهريج 5000 لتر", ur: "5000 لیٹر ٹینکر" },
-      deliveryType: "scheduled"
-    });
-
-    // 6. Create Order
-    await storage.createOrder({
-      customerId: customerUser.id,
-      serviceId: service.id,
-      status: "new",
-      totalAmount: "150",
-      location: { address: "123 Main St" },
-      notes: "Please arrive before noon"
-    });
-
-    // 7. Create permissions including impersonation permission
     try {
-      await storage.createPermission({
-        name: "user_impersonation",
-        description: "Permission to impersonate users",
-        category: "users"
+      // 1. Create Users
+      const admin = await storage.createUser({
+        email: "admin@example.com",
+        password: "password123", // In real app, hash this!
+        fullName: "Super Admin",
+        role: "admin",
+        isActive: true,
+        metadata: {},
+        phone: "1234567890"
       });
-    } catch (error) {
-      console.log("Impersonation permission already exists");
-    }
 
-    console.log("Seeding complete!");
+      const driverUser = await storage.createUser({
+        email: "driver@example.com",
+        password: "password123",
+        fullName: "John Driver",
+        role: "driver",
+        isActive: true,
+        metadata: {},
+        phone: "0987654321"
+      });
+
+      const customerUser = await storage.createUser({
+        email: "customer@example.com",
+        password: "password123",
+        fullName: "Jane Customer",
+        role: "customer",
+        isActive: true,
+        metadata: {},
+        phone: "1122334455"
+      });
+
+      // 2. Create Vehicle
+      const vehicle = await storage.createVehicle({
+        name: "Water Tanker 5000L",
+        baseFare: "50",
+        pricePerKm: "5",
+        capacity: 5000,
+        images: []
+      });
+
+      // 3. Create Driver Profile
+      await storage.createDriver({
+        userId: driverUser.id,
+        vehicleId: vehicle.id,
+        status: "online",
+        walletBalance: "0",
+        special: false,
+        profile: {}
+      });
+
+      // 4. Create Zones
+      const zone = await storage.createZone({
+        name: "Downtown",
+        address: "City Center",
+        coords: { lat: 24.7136, lng: 46.6753 },
+        avgPrice: "100",
+        fixedPrice: "120"
+      });
+
+      // 5. Create Services and Subcategories
+      const cat = await storage.createServiceCategory({
+        name: { en: "Water Delivery", ar: "توصيل مياه", ur: "پانی کی ترسیل" },
+        description: { en: "Fresh water delivery", ar: "", ur: "" },
+        active: true
+      });
+
+      // Create subcategories for the service category
+      const subcategory1 = await storage.createSubcategory({
+        categoryId: cat.id,
+        name: { en: "5000L Tanker", ar: "صهريج 5000 لتر", ur: "5000 لیٹر ٹینکر" },
+        description: { en: "Large capacity water delivery", ar: "توصيل مياه بسعة كبيرة", ur: "بڑی صلاحیت والی پانی کی ترسیل" },
+        active: true
+      });
+
+      const subcategory2 = await storage.createSubcategory({
+        categoryId: cat.id,
+        name: { en: "3000L Tanker", ar: "صهريج 3000 لتر", ur: "3000 لیٹر ٹینکر" },
+        description: { en: "Medium capacity water delivery", ar: "توصيل مياه بسعة متوسطة", ur: "درمیانی صلاحیت والی پانی کی ترسیل" },
+        active: true
+      });
+
+      const subcategory3 = await storage.createSubcategory({
+        categoryId: cat.id,
+        name: { en: "1000L Tanker", ar: "صهريج 1000 لتر", ur: "1000 لیٹر ٹینکر" },
+        description: { en: "Small capacity water delivery", ar: "توصيل مياه بسعة صغيرة", ur: "چھوٹی صلاحیت والی پانی کی ترسیل" },
+        active: true
+      });
+
+      const service = await storage.createService({
+        categoryId: cat.id,
+        name: { en: "Water Delivery Service", ar: "خدمة توصيل المياه", ur: "پانی کی ترسیل کی خدمت" },
+        deliveryType: "scheduled"
+      });
+
+      // 6. Create Order
+      await storage.createOrder({
+        customerId: customerUser.id,
+        serviceId: service.id,
+        status: "new",
+        totalAmount: "150",
+        location: { address: "123 Main St" },
+        notes: "Please arrive before noon"
+      });
+
+      // 7. Create permissions including impersonation permission
+      try {
+        await storage.createPermission({
+          name: "user_impersonation",
+          description: "Permission to impersonate users",
+          category: "users"
+        });
+      } catch (error) {
+        console.log("Impersonation permission already exists");
+      }
+
+      console.log("Seeding complete!");
+    } catch (error) {
+      console.error("Error during seeding:", error);
+    }
+  } else {
+    console.log("Database already seeded. Skipping seeding process.");
   }
 }

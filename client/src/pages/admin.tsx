@@ -82,14 +82,14 @@ export default function Admin() {
     .map(([serviceId, count]) => {
       const service = services?.find(s => s.id === serviceId);
       return {
-        name: service ? (service.name.en || service.name.ar || service.name.ur || `Service ${serviceId}`) : `Service ${serviceId}`,
+        name: service ? (typeof service.name === 'object' ? service.name.en || service.name.ar || service.name.ur : service.name || `Service ${serviceId}`) : `Service ${serviceId}`,
         value: count
       };
     });
 
   // Top selling stores - using real store data
   const topSellingStores = stores?.slice(0, 5).map(s => ({
-    name: s.name.en || s.name.ar || s.name.ur || 'Unknown Store',
+    name: typeof s.name === 'object' ? s.name.en || s.name.ar || s.name.ur : s.name || 'Unknown Store',
     value: Math.floor(Math.random() * 100) + 50 // Placeholder - would use real sales data
   })) || [];
 
@@ -99,7 +99,7 @@ export default function Admin() {
   // For now, using product data with a placeholder for sales count
   // In a real implementation, we would track sales per product
   const topSellingProducts = products?.slice(0, 5).map((p, index) => ({
-    name: p.name.en || p.name.ar || p.name.ur || 'Unknown Product',
+    name: typeof p.name === 'object' ? p.name.en || p.name.ar || p.name.ur : p.name || 'Unknown Product',
     value: 100 - (index * 10) // Simulate decreasing sales, would use real data in production
   })) || [];
 

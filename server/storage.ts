@@ -13,7 +13,8 @@ import {
   type DriverDocument, type InsertDriverDocument, type AdminSetting,
   type Store, type InsertStore,
   type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission,
-  type ImpersonationLog, type InsertImpersonationLog
+  type ImpersonationLog, type InsertImpersonationLog,
+  type Rating, type InsertRating
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -52,6 +53,7 @@ export interface IStorage {
   // Vehicle
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   getAllVehicles(): Promise<Vehicle[]>;
+  getVehiclesWithDrivers(): Promise<(Vehicle & { driver: { id: string; fullName: string; status: string } | null })[]>;
 
   // Zone
   getZone(id: string): Promise<Zone | undefined>;
@@ -83,6 +85,8 @@ export interface IStorage {
   // Product
   getProduct(id: string): Promise<Product | undefined>;
   getAllProducts(): Promise<Product[]>;
+  getProductsByCategory(categoryId: string): Promise<Product[]>;
+  getProductsBySubcategory(subcategoryId: string): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: string): Promise<boolean>;
@@ -118,9 +122,30 @@ export interface IStorage {
   // Admin Settings
   getAdminSetting(key: string): Promise<AdminSetting | undefined>;
 
+  // Ratings
+  createRating(rating: InsertRating): Promise<Rating>;
+  getRating(id: string): Promise<Rating | undefined>;
+  getRatings(orderId?: string, raterId?: string, ratedId?: string): Promise<Rating[]>;
+  updateRating(id: string, updates: Partial<InsertRating>): Promise<Rating | undefined>;
+  deleteRating(id: string): Promise<boolean>;
+
   // Impersonation Logs
   createImpersonationLog(log: InsertImpersonationLog): Promise<ImpersonationLog>;
   getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]>;
+}
+
+// Utility function to normalize language objects to ensure consistent structure
+function normalizeLanguageObject(obj: any): { en: string; ar: string; ur: string } {
+  if (!obj) {
+    return { en: "", ar: "", ur: "" };
+  }
+
+  // If it's already a proper language object, ensure all required keys exist
+  return {
+    en: obj.en || "",
+    ar: obj.ar || "",
+    ur: obj.ur || "",
+  };
 }
 
 export class DatabaseStorage implements IStorage {
@@ -128,32 +153,40 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return user as User | undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     const db = getDb();
     const [user] = await db.select().from(users).where(eq(users.email, username));
-    return user;
+    return user as User | undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const db = getDb();
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    try {
+      const [user] = await db.insert(users).values(insertUser).returning();
+      return user;
+    } catch (error) {
+      // Check if it's a unique constraint violation (duplicate email)
+      if (error.message && error.message.includes('users_email_key')) {
+        throw new Error(`User with email ${insertUser.email} already exists`);
+      }
+      throw error;
+    }
   }
 
   async getAllUsers(role?: string): Promise<User[]> {
     try {
       const db = getDb();
       if (role) {
-        return await db.select().from(users).where(eq(users.role, role));
+        return await db.select().from(users).where(eq(users.role, role as any));
       }
       return await db.select().from(users);
     } catch (error) {
       console.error("Database error in getAllUsers:", error);
-      // Return mock data in case of database error
-      return [];
+      // Re-throw the error so calling functions can handle it appropriately
+      throw error;
     }
   }
 
@@ -163,7 +196,7 @@ export class DatabaseStorage implements IStorage {
       .set(updates)
       .where(eq(users.id, id))
       .returning();
-    return updatedUser;
+    return updatedUser as User | undefined;
   }
 
   // Permissions
@@ -417,6 +450,36 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getVehiclesWithDrivers(): Promise<(Vehicle & { driver: { id: string; fullName: string; status: string } | null })[]> {
+    try {
+      const db = getDb();
+      // Join vehicles with drivers and users to get driver name
+      const result = await db
+        .select({
+          vehicle: vehicles,
+          driverId: drivers.id,
+          driverStatus: drivers.status,
+          driverFullName: users.fullName,
+        })
+        .from(vehicles)
+        .leftJoin(drivers, eq(vehicles.id, drivers.vehicleId))
+        .leftJoin(users, eq(drivers.userId, users.id));
+
+      // Transform the result to match the expected return type
+      return result.map(({ vehicle, driverId, driverStatus, driverFullName }) => ({
+        ...vehicle,
+        driver: driverId ? {
+          id: driverId,
+          status: driverStatus,
+          fullName: driverFullName,
+        } : null,
+      }));
+    } catch (error) {
+      console.error("Database error in getVehiclesWithDrivers:", error);
+      return [];
+    }
+  }
+
   // Zone
   async getZone(id: string): Promise<Zone | undefined> {
     try {
@@ -468,7 +531,13 @@ export class DatabaseStorage implements IStorage {
   async createServiceCategory(insertCategory: InsertServiceCategory): Promise<ServiceCategory> {
     try {
       const db = getDb();
-      const [category] = await db.insert(serviceCategories).values(insertCategory).returning();
+      // Normalize language objects to ensure consistent structure
+      const normalizedCategory = {
+        ...insertCategory,
+        name: normalizeLanguageObject(insertCategory.name),
+        description: normalizeLanguageObject(insertCategory.description),
+      };
+      const [category] = await db.insert(serviceCategories).values(normalizedCategory).returning();
       return category;
     } catch (error) {
       console.error("Database error in createServiceCategory:", error);
@@ -479,8 +548,20 @@ export class DatabaseStorage implements IStorage {
   async updateServiceCategory(id: string, updates: Partial<InsertServiceCategory>): Promise<ServiceCategory | undefined> {
     try {
       const db = getDb();
+      // Normalize language objects to ensure consistent structure
+      const normalizedUpdates = {
+        ...updates,
+      };
+
+      if (updates.name) {
+        normalizedUpdates.name = normalizeLanguageObject(updates.name);
+      }
+      if (updates.description) {
+        normalizedUpdates.description = normalizeLanguageObject(updates.description);
+      }
+
       const [updatedCategory] = await db.update(serviceCategories)
-        .set(updates)
+        .set(normalizedUpdates)
         .where(eq(serviceCategories.id, id))
         .returning();
       return updatedCategory;
@@ -504,7 +585,7 @@ export class DatabaseStorage implements IStorage {
   async getAllServiceCategories(): Promise<ServiceCategory[]> {
     try {
       const db = getDb();
-      return await db.select().from(serviceCategories);
+      return await db.select().from(serviceCategories).where(eq(serviceCategories.active, true));
     } catch (error) {
       console.error("Database error in getAllServiceCategories:", error);
       return [];
@@ -514,7 +595,12 @@ export class DatabaseStorage implements IStorage {
   async createService(insertService: InsertService): Promise<Service> {
     try {
       const db = getDb();
-      const [service] = await db.insert(services).values(insertService).returning();
+      // Normalize language objects to ensure consistent structure
+      const normalizedService = {
+        ...insertService,
+        name: normalizeLanguageObject(insertService.name),
+      };
+      const [service] = await db.insert(services).values(normalizedService).returning();
       return service;
     } catch (error) {
       console.error("Database error in createService:", error);
@@ -536,7 +622,13 @@ export class DatabaseStorage implements IStorage {
   async createSubcategory(insertSubcategory: InsertSubcategory & { categoryId: string }): Promise<Subcategory> {
     try {
       const db = getDb();
-      const [subcategory] = await db.insert(subcategories).values(insertSubcategory).returning();
+      // Normalize language objects to ensure consistent structure
+      const normalizedSubcategory = {
+        ...insertSubcategory,
+        name: normalizeLanguageObject(insertSubcategory.name),
+        description: normalizeLanguageObject(insertSubcategory.description),
+      };
+      const [subcategory] = await db.insert(subcategories).values(normalizedSubcategory).returning();
       return subcategory;
     } catch (error) {
       console.error("Database error in createSubcategory:", error);
@@ -547,8 +639,20 @@ export class DatabaseStorage implements IStorage {
   async updateSubcategory(id: string, updates: Partial<InsertSubcategory>): Promise<Subcategory | undefined> {
     try {
       const db = getDb();
+      // Normalize language objects to ensure consistent structure
+      const normalizedUpdates = {
+        ...updates,
+      };
+
+      if (updates.name) {
+        normalizedUpdates.name = normalizeLanguageObject(updates.name);
+      }
+      if (updates.description) {
+        normalizedUpdates.description = normalizeLanguageObject(updates.description);
+      }
+
       const [updatedSubcategory] = await db.update(subcategories)
-        .set(updates)
+        .set(normalizedUpdates)
         .where(eq(subcategories.id, id))
         .returning();
       return updatedSubcategory;
@@ -572,7 +676,13 @@ export class DatabaseStorage implements IStorage {
   async getSubcategoriesByCategory(categoryId: string): Promise<Subcategory[]> {
     try {
       const db = getDb();
-      return await db.select().from(subcategories).where(eq(subcategories.categoryId, categoryId));
+      // Use a single query with join to check category active status and get subcategories
+      const subcategoriesResult = await db.select({ subcategories }).from(subcategories)
+        .innerJoin(serviceCategories, eq(subcategories.categoryId, serviceCategories.id))
+        .where(and(eq(subcategories.categoryId, categoryId), eq(serviceCategories.active, true), eq(subcategories.active, true)));
+
+      // Extract just the subcategory data from the joined result
+      return subcategoriesResult.map(row => row.subcategories);
     } catch (error) {
       console.error("Database error in getSubcategoriesByCategory:", error);
       return [];
@@ -582,7 +692,7 @@ export class DatabaseStorage implements IStorage {
   async getAllSubcategories(): Promise<Subcategory[]> {
     try {
       const db = getDb();
-      return await db.select().from(subcategories);
+      return await db.select().from(subcategories).where(eq(subcategories.active, true));
     } catch (error) {
       console.error("Database error in getAllSubcategories:", error);
       return [];
@@ -644,6 +754,44 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Database error in deleteProduct:", error);
       return false;
+    }
+  }
+
+  async getProductsByCategory(categoryId: string): Promise<Product[]> {
+    try {
+      console.log('Getting products for category ID:', categoryId);
+      const db = getDb();
+      // Use a single query with join to get products by category
+      // Removed the active status check to allow showing products even if category is inactive
+      const productsResult = await db.select().from(products)
+        .innerJoin(serviceCategories, eq(products.categoryId, serviceCategories.id))
+        .where(eq(serviceCategories.id, categoryId));
+
+      console.log('Found products:', productsResult.length);
+      // Extract just the product data from the joined result
+      return productsResult.map(row => row.products as Product);
+    } catch (error) {
+      console.error("Database error in getProductsByCategory:", error);
+      return [];
+    }
+  }
+
+  async getProductsBySubcategory(subcategoryId: string): Promise<Product[]> {
+    try {
+      console.log('Getting products for subcategory ID:', subcategoryId);
+      const db = getDb();
+      // Use a single query with join to get products by subcategory
+      // Removed the active status check to allow showing products even if subcategory is inactive
+      const productsResult = await db.select().from(products)
+        .innerJoin(subcategories, eq(products.subcategoryId, subcategories.id))
+        .where(eq(subcategories.id, subcategoryId));
+
+      console.log('Found products:', productsResult.length);
+      // Extract just the product data from the joined result
+      return productsResult.map(row => row.products as Product);
+    } catch (error) {
+      console.error("Database error in getProductsBySubcategory:", error);
+      return [];
     }
   }
 
@@ -713,8 +861,8 @@ export class DatabaseStorage implements IStorage {
   async getPricing(id: string): Promise<Pricing | undefined> {
     try {
       const db = getDb();
-      const [pricing] = await db.select().from(pricing).where(eq(pricing.id, id));
-      return pricing;
+      const [pricingResult] = await db.select().from(pricing).where(eq(pricing.id, id));
+      return pricingResult;
     } catch (error) {
       console.error("Database error in getPricing:", error);
       return undefined;
@@ -724,8 +872,8 @@ export class DatabaseStorage implements IStorage {
   async createPricing(insertPricing: InsertPricing): Promise<Pricing> {
     try {
       const db = getDb();
-      const [pricing] = await db.insert(pricing).values(insertPricing).returning();
-      return pricing;
+      const [pricingResult] = await db.insert(pricing).values(insertPricing).returning();
+      return pricingResult;
     } catch (error) {
       console.error("Database error in createPricing:", error);
       throw error;
@@ -761,7 +909,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const db = getDb();
       const [result] = await db.insert(notifications).values(notification).returning();
-      return result;
+      return result as Notification;
     } catch (error) {
       console.error("Database error in createNotification:", error);
       throw error;
@@ -782,7 +930,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const db = getDb();
       const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));
-      return notification;
+      return notification as Notification | undefined;
     } catch (error) {
       console.error("Database error in getNotification:", error);
       return undefined;
@@ -796,7 +944,7 @@ export class DatabaseStorage implements IStorage {
         .set(updates)
         .where(eq(notifications.id, id))
         .returning();
-      return updatedNotification;
+      return updatedNotification as Notification | undefined;
     } catch (error) {
       console.error("Database error in updateNotification:", error);
       return undefined;
@@ -807,7 +955,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const db = getDb();
       const result = await db.delete(notifications).where(eq(notifications.id, id));
-      return result.rowsAffected > 0;
+      return (result as any).rowsAffected > 0;
     } catch (error) {
       console.error("Database error in deleteNotification:", error);
       return false;
@@ -942,19 +1090,97 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Ratings
+  async createRating(insertRating: InsertRating): Promise<Rating> {
+    try {
+      const db = getDb();
+      const [rating] = await db.insert(ratings).values(insertRating).returning();
+      return rating;
+    } catch (error) {
+      console.error("Database error in createRating:", error);
+      throw error;
+    }
+  }
+
+  async getRating(id: string): Promise<Rating | undefined> {
+    try {
+      const db = getDb();
+      const [rating] = await db.select().from(ratings).where(eq(ratings.id, id));
+      return rating;
+    } catch (error) {
+      console.error("Database error in getRating:", error);
+      return undefined;
+    }
+  }
+
+  async getRatings(orderId?: string, raterId?: string, ratedId?: string): Promise<Rating[]> {
+    try {
+      const db = getDb();
+      let query = db.select().from(ratings).orderBy(desc(ratings.createdAt));
+
+      if (orderId) {
+        query = query.where(eq(ratings.orderId, orderId));
+      }
+      if (raterId) {
+        if (orderId) {
+          query = query.andWhere(eq(ratings.raterId, raterId));
+        } else {
+          query = query.where(eq(ratings.raterId, raterId));
+        }
+      }
+      if (ratedId) {
+        if (orderId || raterId) {
+          query = query.andWhere(eq(ratings.ratedId, ratedId));
+        } else {
+          query = query.where(eq(ratings.ratedId, ratedId));
+        }
+      }
+
+      return await query;
+    } catch (error) {
+      console.error("Database error in getRatings:", error);
+      return [];
+    }
+  }
+
+  async updateRating(id: string, updates: Partial<InsertRating>): Promise<Rating | undefined> {
+    try {
+      const db = getDb();
+      const [updatedRating] = await db.update(ratings)
+        .set(updates)
+        .where(eq(ratings.id, id))
+        .returning();
+      return updatedRating;
+    } catch (error) {
+      console.error("Database error in updateRating:", error);
+      return undefined;
+    }
+  }
+
+  async deleteRating(id: string): Promise<boolean> {
+    try {
+      const db = getDb();
+      const result = await db.delete(ratings).where(eq(ratings.id, id));
+      return result.rowsAffected > 0;
+    } catch (error) {
+      console.error("Database error in deleteRating:", error);
+      return false;
+    }
+  }
+
   // Impersonation Logs
   async createImpersonationLog(insertLog: InsertImpersonationLog): Promise<ImpersonationLog> {
     try {
       const db = getDb();
       const [log] = await db.insert(impersonationLogs).values(insertLog).returning();
-      return log;
-    } catch (error) {
+      return log as ImpersonationLog;
+    } catch (error: any) {
       console.error("Database error in createImpersonationLog:", error);
       // If it's a foreign key constraint error, we'll log it but not throw to allow impersonation to continue
       if (error.message && (error.message.includes('foreign key') || error.message.includes('FK') || error.message.includes('constraint'))) {
         console.log("Foreign key constraint error - skipping impersonation log creation");
         // Return without throwing to allow impersonation to continue
-        return null; // We'll handle null return in the route
+        return null as any; // We'll handle null return in the route
       }
       throw error;
     }
@@ -972,7 +1198,7 @@ export class DatabaseStorage implements IStorage {
       if (targetUserId) {
         if (adminId) {
           // If adminId was already applied, use andWhere
-          query = query.andWhere(eq(impersonationLogs.targetUserId, targetUserId));
+          query = (query as any).andWhere(eq(impersonationLogs.targetUserId, targetUserId));
         } else {
           // If no adminId, just apply targetUserId
           query = query.where(eq(impersonationLogs.targetUserId, targetUserId));
@@ -982,8 +1208,8 @@ export class DatabaseStorage implements IStorage {
       // Order by creation date, most recent first
       query = query.orderBy(desc(impersonationLogs.createdAt));
 
-      return await query;
-    } catch (error) {
+      return await query as ImpersonationLog[];
+    } catch (error: any) {
       console.error("Database error in getImpersonationLogs:", error);
       return [];
     }

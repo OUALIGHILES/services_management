@@ -264,8 +264,8 @@ export default function AdminUsers() {
                               fullName: user.fullName,
                               phone: user.phone || "",
                               role: user.role,
-                              isActive: user.isActive,
-                              metadata: user.metadata,
+                              isActive: user.isActive || true,
+                              metadata: user.metadata || {},
                             });
                           }}
                         >

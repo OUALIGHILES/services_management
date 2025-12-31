@@ -1,6 +1,8 @@
-import { useDrivers, useUpdateDriverStatus, useCreateDriver, useUpdateDriver } from "@/hooks/use-drivers";
+import { useDrivers, useUpdateDriverStatus, useUpdateAnyDriverStatus, useCreateDriver, useUpdateDriver } from "@/hooks/use-drivers";
 import { useVehicles } from "@/hooks/use-vehicles";
 import { useUsers } from "@/hooks/use-users";
+import { useServiceCategories } from "@/hooks/use-service-categories";
+import { useSubcategories } from "@/hooks/use-subcategories";
 import {
   Table,
   TableBody,
@@ -53,7 +55,6 @@ import {
 const driverFormSchema = insertDriverSchema.omit({
   id: true,
   createdAt: true,
-  walletBalance: true // This is typically auto-set
 });
 
 type DriverFormValues = z.infer<typeof driverFormSchema>;
@@ -62,7 +63,9 @@ export default function AdminDrivers() {
   const { data: drivers, isLoading, refetch } = useDrivers();
   const { data: vehicles } = useVehicles();
   const { data: users } = useUsers();
-  const updateStatus = useUpdateDriverStatus();
+  const { data: serviceCategories } = useServiceCategories();
+  const { data: subcategories } = useSubcategories();
+  const updateStatus = useUpdateAnyDriverStatus();
   const createDriver = useCreateDriver();
   const updateDriver = useUpdateDriver();
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -82,6 +85,8 @@ export default function AdminDrivers() {
       status: "pending",
       special: false,
       profile: {},
+      serviceCategory: "",
+      subService: "",
     },
   });
 
@@ -100,6 +105,15 @@ export default function AdminDrivers() {
 
   const handleStatusChange = (driverId: string, newStatus: string) => {
     updateStatus.mutate({ id: driverId, status: newStatus });
+  };
+
+  const handleApproveWithCategory = (driverId: string, serviceCategory: string, subService: string) => {
+    updateStatus.mutate({
+      id: driverId,
+      status: 'approved',
+      serviceCategory,
+      subService
+    });
   };
 
   const [location, setLocation] = useLocation();
@@ -195,7 +209,7 @@ export default function AdminDrivers() {
                           <SelectContent>
                             {vehicles?.map((vehicle) => (
                               <SelectItem key={vehicle.id} value={vehicle.id}>
-                                {vehicle.name}
+                                {typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -374,7 +388,7 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {vehicle ? vehicle.name : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
+                          {vehicle ? (typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name) : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -383,9 +397,30 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            {user?.phone || 'N/A'}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-4 h-4 text-muted-foreground" />
+                              {user?.phone || 'N/A'}
+                            </div>
+                            {user?.phone && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-8 w-8 p-0"
+                              >
+                                <a
+                                  href={`https://wa.me/${user?.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Contact via WhatsApp"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.46-8.432"/>
+                                  </svg>
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -424,6 +459,13 @@ export default function AdminDrivers() {
                                   status: driver.status || "pending",
                                   special: driver.special,
                                   profile: driver.profile,
+                                  serviceCategory: driver.serviceCategory || "",
+                                  subService: driver.subService || "",
+                                  phone: driver.phone || "",
+                                  walletBalance: driver.walletBalance || "0",
+                                  operatingZones: driver.operatingZones || [],
+                                  documents: driver.documents || {},
+                                  profilePhoto: driver.profilePhoto || "",
                                 });
                               }}
                             >
@@ -457,6 +499,8 @@ export default function AdminDrivers() {
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
+                    <TableHead>Service Category</TableHead>
+                    <TableHead>Sub-Service</TableHead>
                     <TableHead>Special</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -465,66 +509,23 @@ export default function AdminDrivers() {
                   {filteredDrivers.map((driver) => {
                     const vehicle = vehicles?.find(v => v.id === driver.vehicleId);
                     const user = users?.find(u => u.id === driver.userId);
+
                     return (
-                      <TableRow key={driver.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                              <User className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                              <div className="font-medium">{user?.fullName || `Driver ${driver.id.slice(0, 8)}`}</div>
-                              <div className="text-xs text-muted-foreground">ID: {driver.id.slice(0, 8)}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {vehicle ? vehicle.name : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Mail className="w-4 h-4 text-muted-foreground" />
-                            {user?.email || 'N/A'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            {user?.phone || 'N/A'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {driver.special ? (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusChange(driver.id, 'approved')}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusChange(driver.id, 'offline')}
-                              className="text-red-600 border-red-600 hover:bg-red-50"
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <PendingDriverRow
+                        key={driver.id}
+                        driver={driver}
+                        user={user}
+                        vehicle={vehicle}
+                        serviceCategories={serviceCategories}
+                        subcategories={subcategories}
+                        onApprove={handleApproveWithCategory}
+                        onReject={handleStatusChange}
+                      />
                     );
                   })}
                   {filteredDrivers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No pending applications.</TableCell>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No pending applications.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -569,7 +570,7 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {vehicle ? vehicle.name : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
+                          {vehicle ? (typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name) : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -578,9 +579,30 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            {user?.phone || 'N/A'}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-4 h-4 text-muted-foreground" />
+                              {user?.phone || 'N/A'}
+                            </div>
+                            {user?.phone && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-8 w-8 p-0"
+                              >
+                                <a
+                                  href={`https://wa.me/${user?.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Contact via WhatsApp"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.46-8.432"/>
+                                  </svg>
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -619,6 +641,13 @@ export default function AdminDrivers() {
                                   status: driver.status || "pending",
                                   special: driver.special,
                                   profile: driver.profile,
+                                  serviceCategory: driver.serviceCategory || "",
+                                  subService: driver.subService || "",
+                                  phone: driver.phone || "",
+                                  walletBalance: driver.walletBalance || "0",
+                                  operatingZones: driver.operatingZones || [],
+                                  documents: driver.documents || {},
+                                  profilePhoto: driver.profilePhoto || "",
                                 });
                               }}
                             >
@@ -676,7 +705,7 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {vehicle ? vehicle.name : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
+                          {vehicle ? (typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name) : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -685,9 +714,30 @@ export default function AdminDrivers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            {user?.phone || 'N/A'}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-4 h-4 text-muted-foreground" />
+                              {user?.phone || 'N/A'}
+                            </div>
+                            {user?.phone && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                                className="h-8 w-8 p-0"
+                              >
+                                <a
+                                  href={`https://wa.me/${user?.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Contact via WhatsApp"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.46-8.432"/>
+                                  </svg>
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -726,6 +776,13 @@ export default function AdminDrivers() {
                                   status: driver.status || "pending",
                                   special: driver.special,
                                   profile: driver.profile,
+                                  serviceCategory: driver.serviceCategory || "",
+                                  subService: driver.subService || "",
+                                  phone: driver.phone || "",
+                                  walletBalance: driver.walletBalance || "0",
+                                  operatingZones: driver.operatingZones || [],
+                                  documents: driver.documents || {},
+                                  profilePhoto: driver.profilePhoto || "",
                                 });
                               }}
                             >
@@ -796,7 +853,7 @@ export default function AdminDrivers() {
                         <SelectContent>
                           {vehicles?.map((vehicle) => (
                             <SelectItem key={vehicle.id} value={vehicle.id}>
-                              {vehicle.name}
+                              {typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -876,5 +933,157 @@ export default function AdminDrivers() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+// Component for pending driver row
+function PendingDriverRow({
+  driver,
+  user,
+  vehicle,
+  serviceCategories,
+  subcategories,
+  onApprove,
+  onReject
+}: {
+  driver: Driver;
+  user: UserType | undefined;
+  vehicle: any;
+  serviceCategories: any[];
+  subcategories: any[];
+  onApprove: (driverId: string, serviceCategory: string, subService: string) => void;
+  onReject: (driverId: string, newStatus: string) => void;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState(driver.serviceCategory || "");
+  const [selectedSubService, setSelectedSubService] = useState(driver.subService || "");
+
+  // Filter subcategories based on selected category
+  const filteredSubcategories = subcategories?.filter(
+    sub => sub.categoryId === selectedCategory
+  );
+
+  // If the driver's service category doesn't exist in the system, add it as a custom option
+  let serviceCategoryOptions = serviceCategories || [];
+  if (driver.serviceCategory && !serviceCategories?.some((cat: any) => cat.id === driver.serviceCategory)) {
+    serviceCategoryOptions = [...serviceCategoryOptions, {
+      id: driver.serviceCategory,
+      name: driver.serviceCategory
+    }];
+  }
+
+  // If the driver's sub-service doesn't exist in the system, add it as a custom option
+  let subServiceOptions = filteredSubcategories || [];
+  if (driver.subService && !filteredSubcategories?.some((sub: any) => sub.id === driver.subService)) {
+    subServiceOptions = [...subServiceOptions, {
+      id: driver.subService,
+      name: driver.subService
+    }];
+  }
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="font-medium">{user?.fullName || `Driver ${driver.id.slice(0, 8)}`}</div>
+            <div className="text-xs text-muted-foreground">ID: {driver.id.slice(0, 8)}</div>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        {vehicle ? (typeof vehicle.name === 'object' ? vehicle.name.en || vehicle.name.ar || vehicle.name.ur : vehicle.name) : <span className="text-muted-foreground text-xs italic">No vehicle assigned</span>}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <Mail className="w-4 h-4 text-muted-foreground" />
+          {user?.email || 'N/A'}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Phone className="w-4 h-4 text-muted-foreground" />
+            {user?.phone || 'N/A'}
+          </div>
+          {user?.phone && (
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="h-8 w-8 p-0"
+            >
+              <a
+                href={`https://wa.me/${user?.phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Contact via WhatsApp"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.46-8.432"/>
+                </svg>
+              </a>
+            </Button>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            {serviceCategoryOptions?.map((category: any) => (
+              <SelectItem key={category.id} value={category.id}>
+                {typeof category.name === 'object' ? category.name.en || category.name.ar || category.name.ur : category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Select value={selectedSubService} onValueChange={setSelectedSubService}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Select sub-service" />
+          </SelectTrigger>
+          <SelectContent>
+            {subServiceOptions?.map((subcategory: any) => (
+              <SelectItem key={subcategory.id} value={subcategory.id}>
+                {typeof subcategory.name === 'object' ? subcategory.name.en || subcategory.name.ar || subcategory.name.ur : subcategory.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        {driver.special ? (
+          <CheckCircle className="w-5 h-5 text-green-500" />
+        ) : (
+          <XCircle className="w-5 h-5 text-muted-foreground" />
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onApprove(driver.id, selectedCategory, selectedSubService)}
+            disabled={!selectedCategory || !selectedSubService}
+          >
+            Approve
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onReject(driver.id, 'offline')}
+            className="text-red-600 border-red-600 hover:bg-red-50"
+          >
+            Reject
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }

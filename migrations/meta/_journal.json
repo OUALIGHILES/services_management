@@ -15,6 +15,13 @@
       "when": 1767037157969,
       "tag": "0001_ambitious_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767092581999,
+      "tag": "0002_tan_the_captain",
+      "breakpoints": true
     }
   ]
 }

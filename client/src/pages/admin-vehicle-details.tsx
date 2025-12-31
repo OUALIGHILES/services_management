@@ -13,20 +13,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
-import { 
-  Plus, 
-  Edit, 
-  Eye, 
-  Trash2, 
-  Search, 
-  Filter, 
+import {
+  Plus,
+  Edit,
+  Eye,
+  Trash2,
+  Search,
+  Filter,
   Download,
   Image as ImageIcon,
   Car,
   DollarSign,
   Ruler
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -48,9 +48,14 @@ interface Vehicle {
   status: 'active' | 'inactive';
   createdAt: string;
   modifiedAt: string;
+  driver: {
+    id: string;
+    fullName: string;
+    status: string;
+  } | null;
 }
 
-// Form schema for validation
+// Form schema for validation - exclude driver field as it's not editable in vehicle form
 const vehicleSchema = z.object({
   nameEn: z.string().min(2, "English name must be at least 2 characters"),
   nameAr: z.string().min(2, "Arabic name must be at least 2 characters"),
@@ -62,72 +67,59 @@ const vehicleSchema = z.object({
 });
 
 export default function AdminVehicleDetails() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([
-    {
-      id: "1",
-      name: {
-        en: "Water Tanker 5000L",
-        ar: "صهريج ماء 5000 لتر",
-        ur: "5000 لیٹر پانی ٹینکر"
-      },
-      image: "/placeholder-vehicle.jpg",
-      capacity: 5000,
-      baseFare: 25.00,
-      pricePerKm: 2.50,
-      status: "active",
-      createdAt: "2023-01-15",
-      modifiedAt: "2023-05-20"
-    },
-    {
-      id: "2",
-      name: {
-        en: "Sand Transport 10T",
-        ar: "نقل الرمل 10 طن",
-        ur: "ریت ٹرانسپورٹ 10 ٹن"
-      },
-      image: "/placeholder-vehicle.jpg",
-      capacity: 10000,
-      baseFare: 30.00,
-      pricePerKm: 3.00,
-      status: "active",
-      createdAt: "2023-02-10",
-      modifiedAt: "2023-06-15"
-    },
-    {
-      id: "3",
-      name: {
-        en: "Furniture Moving Truck",
-        ar: "شاحنة نقل الأثاث",
-        ur: "فرنیچر منتقلی ٹرک"
-      },
-      image: "/placeholder-vehicle.jpg",
-      capacity: 2000,
-      baseFare: 40.00,
-      pricePerKm: 4.00,
-      status: "inactive",
-      createdAt: "2023-03-05",
-      modifiedAt: "2023-07-10"
-    },
-    {
-      id: "4",
-      name: {
-        en: "General Delivery Van",
-        ar: "شاحنة التوصيل العامة",
-        ur: "جنرل ڈیلیوری وین"
-      },
-      image: "/placeholder-vehicle.jpg",
-      capacity: 500,
-      baseFare: 15.00,
-      pricePerKm: 1.50,
-      status: "active",
-      createdAt: "2023-04-12",
-      modifiedAt: "2023-08-05"
-    }
-  ]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch vehicles with driver information
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      try {
+        // Use the same authentication method as other API calls in the app
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const response = await fetch('/api/vehicles', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setVehicles(data);
+        } else {
+          console.error('Failed to fetch vehicles:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVehicles();
+  }, []);
+
+  // Add useEffect import to the imports at the top of the file
 
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Filter vehicles based on search term
+  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
+
+  useEffect(() => {
+    if (vehicles && vehicles.length > 0) {
+      const filtered = vehicles.filter(veh =>
+        (veh.name.en && veh.name.en.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (veh.name.ar && veh.name.ar.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (veh.name.ur && veh.name.ur.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        veh.capacity.toString().includes(searchTerm)
+      );
+      setFilteredVehicles(filtered);
+    } else {
+      setFilteredVehicles([]);
+    }
+  }, [vehicles, searchTerm]);
 
   // Form setup
   const form = useForm<z.infer<typeof vehicleSchema>>({
@@ -137,8 +129,8 @@ export default function AdminVehicleDetails() {
       nameAr: editingVehicle?.name.ar || "",
       nameUr: editingVehicle?.name.ur || "",
       capacity: editingVehicle?.capacity || 0,
-      baseFare: editingVehicle?.baseFare || 0,
-      pricePerKm: editingVehicle?.pricePerKm || 0,
+      baseFare: Number(editingVehicle?.baseFare) || 0,
+      pricePerKm: Number(editingVehicle?.pricePerKm) || 0,
       status: editingVehicle?.status || "active",
     },
   });
@@ -147,8 +139,8 @@ export default function AdminVehicleDetails() {
   const onSubmit = (data: z.infer<typeof vehicleSchema>) => {
     if (editingVehicle) {
       // Update existing vehicle
-      setVehicles(vehicles.map(veh => 
-        veh.id === editingVehicle.id 
+      setVehicles(vehicles.map(veh =>
+        veh.id === editingVehicle.id
           ? {
               ...veh,
               name: {
@@ -179,11 +171,12 @@ export default function AdminVehicleDetails() {
         pricePerKm: data.pricePerKm,
         status: data.status,
         createdAt: new Date().toISOString(),
-        modifiedAt: new Date().toISOString()
+        modifiedAt: new Date().toISOString(),
+        driver: null // No driver assigned initially
       };
       setVehicles([...vehicles, newVehicle]);
     }
-    
+
     setIsDialogOpen(false);
     setEditingVehicle(null);
     form.reset();
@@ -210,14 +203,6 @@ export default function AdminVehicleDetails() {
       setVehicles(vehicles.filter(veh => veh.id !== id));
     }
   };
-
-  // Filter vehicles based on search term
-  const filteredVehicles = vehicles.filter(veh => 
-    veh.name.en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    veh.name.ar.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    veh.name.ur.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    veh.capacity.toString().includes(searchTerm)
-  );
 
   return (
     <div className="space-y-8">
@@ -416,6 +401,7 @@ export default function AdminVehicleDetails() {
                 <TableHead>Capacity</TableHead>
                 <TableHead>Base Fare</TableHead>
                 <TableHead>Price per Km</TableHead>
+                <TableHead>Driver</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -440,14 +426,26 @@ export default function AdminVehicleDetails() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <DollarSign className="w-4 h-4 text-muted-foreground" />
-                      <span>{vehicle.baseFare.toFixed(2)}</span>
+                      <span>{Number(vehicle.baseFare).toFixed(2)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <DollarSign className="w-4 h-4 text-muted-foreground" />
-                      <span>{vehicle.pricePerKm.toFixed(2)}/km</span>
+                      <span>{Number(vehicle.pricePerKm).toFixed(2)}/km</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {vehicle.driver ? (
+                      <div className="space-y-1">
+                        <div className="font-medium">{vehicle.driver.fullName}</div>
+                        <div className="text-sm">
+                          <StatusBadge status={vehicle.driver.status as any} />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">No driver assigned</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={vehicle.status} />
@@ -467,9 +465,16 @@ export default function AdminVehicleDetails() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredVehicles.length === 0 && (
+              {loading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    Loading vehicles...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && filteredVehicles.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No vehicles found.
                   </TableCell>
                 </TableRow>

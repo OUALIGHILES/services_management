@@ -1,150 +1,124 @@
-import { useRoute } from "wouter";
-import { useOrder } from "@/hooks/use-orders";
-import { useCreateRating } from "@/hooks/use-ratings";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, Calendar, Clock, Package, Star } from "lucide-react";
-import { format } from "date-fns";
-import { StatusBadge } from "@/components/status-badge";
-import RatingSystem from "@/components/ui/rating-system";
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Star, ThumbsUp, Clock, Package } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function RateService() {
-  const [match, params] = useRoute("/customer/orders/:id/rate");
-  const { data: order, isLoading } = useOrder(params?.id);
-  const createRating = useCreateRating();
-  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [location, setLocation] = useLocation();
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  const handleRatingSubmit = (rating: number, feedback: string) => {
-    if (!order || !params?.id) return;
+  const tags = [
+    { id: 'fast', label: 'Fast', icon: <Clock className="w-4 h-4" /> },
+    { id: 'polite', label: 'Polite', icon: <ThumbsUp className="w-4 h-4" /> },
+    { id: 'clean', label: 'Clean', icon: <Package className="w-4 h-4" /> },
+    { id: 'careful', label: 'Careful', icon: <Package className="w-4 h-4" /> },
+    { id: 'professional', label: 'Professional', icon: <ThumbsUp className="w-4 h-4" /> },
+  ];
 
-    // Create rating payload
-    const ratingPayload = {
-      orderId: params.id,
-      raterId: order.customerId, // Assuming this is the customer ID
-      ratedId: order.driverId || "", // Driver ID
-      rating: rating,
-      feedback: feedback
-    };
-
-    createRating.mutate(ratingPayload, {
-      onSuccess: () => {
-        setRatingSubmitted(true);
-      }
-    });
+  const toggleTag = (tagId: string) => {
+    if (selectedTags.includes(tagId)) {
+      setSelectedTags(selectedTags.filter(id => id !== tagId));
+    } else {
+      setSelectedTags([...selectedTags, tagId]);
+    }
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-12 w-3/4" />
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
-      </div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold">Order Not Found</h2>
-        <p className="text-muted-foreground mt-2">The order you're looking for doesn't exist.</p>
-        <Button className="mt-4" onClick={() => window.history.back()}>Go Back</Button>
-      </div>
-    );
-  }
-
-  if (ratingSubmitted) {
-    return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Star className="w-8 h-8 text-green-600 fill-current" />
-        </div>
-        <h2 className="text-2xl font-bold mb-2">Thank You!</h2>
-        <p className="text-muted-foreground mb-6">
-          Your feedback helps us improve our service.
-        </p>
-        <Button onClick={() => window.location.href = '/customer/orders'}>
-          Back to Orders
-        </Button>
-      </div>
-    );
-  }
+  const handleSubmit = () => {
+    // In a real app, this would submit the rating to the backend
+    console.log({ rating, comment, selectedTags });
+    // Redirect to customer orders after rating
+    setLocation("/customer/orders");
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold font-display">Rate Your Service</h2>
-          <p className="text-muted-foreground">#{order.requestNumber}</p>
-        </div>
-        <StatusBadge status={order.status || "new"} />
-      </div>
-
-      {/* Order Details */}
+    <div className="max-w-2xl mx-auto px-4 py-8">
       <Card>
-        <CardHeader>
-          <CardTitle>Order Details</CardTitle>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Rate Your Service</CardTitle>
+          <p className="text-muted-foreground">How was your experience with our service?</p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <MapPin className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <h4 className="font-medium">Pickup Location</h4>
-                <p className="text-muted-foreground">
-                  {(order.location as any)?.pickup?.address || "123 Main St, City, State"}
-                </p>
-              </div>
+        <CardContent className="space-y-8">
+          {/* Rating Section */}
+          <div className="text-center">
+            <h3 className="text-lg font-medium mb-4">Rate your experience</h3>
+            <div className="flex justify-center space-x-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="focus:outline-none"
+                >
+                  <Star
+                    className={`w-12 h-12 ${
+                      star <= (hoverRating || rating)
+                        ? 'text-yellow-400 fill-yellow-400'
+                        : 'text-muted-foreground'
+                    }`}
+                  />
+                </button>
+              ))}
             </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <MapPin className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h4 className="font-medium">Dropoff Location</h4>
-                <p className="text-muted-foreground">
-                  {(order.location as any)?.dropoff?.address || "456 Oak Ave, City, State"}
-                </p>
-              </div>
+            <p className="mt-2 text-muted-foreground">
+              {rating > 0 ? `You rated ${rating} star${rating > 1 ? 's' : ''}` : 'Select your rating'}
+            </p>
+          </div>
+
+          {/* Tags Section */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Select tags that apply</h3>
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <Button
+                  key={tag.id}
+                  variant={selectedTags.includes(tag.id) ? "default" : "outline"}
+                  onClick={() => toggleTag(tag.id)}
+                  className="flex items-center gap-2"
+                >
+                  {tag.icon}
+                  {tag.label}
+                </Button>
+              ))}
             </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h4 className="font-medium">Service</h4>
-                <p className="text-muted-foreground">
-                  {order.serviceId || "Delivery Service"}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <h4 className="font-medium">Order Time</h4>
-                <p className="text-muted-foreground">
-                  {order.createdAt ? format(new Date(order.createdAt), "MMM d, yyyy h:mm a") : "N/A"}
-                </p>
-              </div>
-            </div>
+          </div>
+
+          {/* Comment Section */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Additional Comments</h3>
+            <Textarea
+              placeholder="Tell us more about your experience (optional)"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={4}
+            />
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex gap-3">
+            <Button 
+              className="flex-1" 
+              size="lg"
+              onClick={handleSubmit}
+              disabled={rating === 0}
+            >
+              Submit Review
+            </Button>
+            <Button 
+              variant="outline" 
+              size="lg"
+              onClick={() => setLocation("/customer/orders")}
+            >
+              Skip
+            </Button>
           </div>
         </CardContent>
       </Card>
-
-      {/* Rating System */}
-      <RatingSystem 
-        orderId={order.id} 
-        onSubmitRating={handleRatingSubmit} 
-      />
     </div>
   );
 }

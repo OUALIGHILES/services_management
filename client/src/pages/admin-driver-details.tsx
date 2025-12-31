@@ -41,7 +41,7 @@ export default function AdminDriverDetails() {
   }
 
   // Get user details for the driver
-  const { data: user, isLoading: userLoading } = useUser(driver.userId);
+  const { data: user, isLoading: userLoading } = useUser(driver.userId || "");
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

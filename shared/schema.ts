@@ -108,6 +108,7 @@ export const services = pgTable("services", {
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   categoryId: uuid("category_id").references(() => serviceCategories.id).notNull(),
+  subcategoryId: uuid("subcategory_id").references(() => subcategories.id),
   name: text("name").notNull(),
   price: numeric("price").notNull(),
   discountedPrice: numeric("discounted_price"),
@@ -312,6 +313,10 @@ export const productsRelations = relations(products, ({ one }) => ({
     fields: [products.categoryId],
     references: [serviceCategories.id],
   }),
+  subcategory: one(subcategories, {
+    fields: [products.subcategoryId],
+    references: [subcategories.id],
+  }),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -375,7 +380,14 @@ export const insertMessageSchema = createInsertSchema(messages).omit({ id: true,
 export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, createdAt: true });
 export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({ id: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, modifiedAt: true });
-export const insertHomeBannerSchema = createInsertSchema(homeBanners).omit({ id: true, createdAt: true, modifiedAt: true });
+export const insertHomeBannerSchema = createInsertSchema(homeBanners, {
+  imageUrl: z.string().url("Image URL must be a valid URL").min(1, "Image URL is required"),
+  title: z.string().min(2, "Title must be at least 2 characters"),
+  description: z.string().min(5, "Description must be at least 5 characters"),
+  linkUrl: z.string().url("Link URL must be a valid URL").optional().or(z.literal("")),
+  position: z.number().min(1, "Position must be at least 1"),
+  status: z.enum(["active", "inactive"]),
+}).omit({ id: true, createdAt: true, modifiedAt: true });
 export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, createdAt: true, modifiedAt: true });
 
 export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });

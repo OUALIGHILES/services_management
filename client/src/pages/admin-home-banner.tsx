@@ -66,6 +66,9 @@ export default function AdminHomeBanner() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
   // Fetch banners from the backend
   useEffect(() => {
@@ -75,8 +78,8 @@ export default function AdminHomeBanner() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}` // Assuming token is stored in localStorage
-          }
+          },
+          credentials: 'include'
         });
 
         if (response.ok) {
@@ -84,9 +87,11 @@ export default function AdminHomeBanner() {
           setBanners(data);
         } else {
           console.error('Failed to fetch banners:', response.statusText);
+          alert('Failed to load banners. Please try again later.');
         }
       } catch (error) {
         console.error('Error fetching banners:', error);
+        alert('An error occurred while loading banners. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -97,19 +102,34 @@ export default function AdminHomeBanner() {
 
   // Handle form submission
   const onSubmit = async (data: z.infer<typeof bannerSchema>) => {
+    // Check if image upload is still in progress
+    if (saving) {
+      alert('Please wait for the image upload to complete.');
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingBanner) {
         // Update existing banner
+        // If we're editing and no new image was uploaded, keep the existing image
+        const imageUrlToUse = uploadedImageUrl || editingBanner.imageUrl;
+
+        if (!imageUrlToUse) {
+          alert('Banner must have an image. Please upload an image or keep the existing one.');
+          return;
+        }
+
         const response = await fetch(buildUrl(api.homeBanners.update.path, { id: editingBanner.id }), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
+          credentials: 'include',
           body: JSON.stringify({
             title: data.title,
             description: data.description,
+            imageUrl: imageUrlToUse, // Use uploaded image or keep existing
             linkUrl: data.linkUrl,
             position: data.position,
             status: data.status
@@ -123,21 +143,30 @@ export default function AdminHomeBanner() {
           ));
           setIsDialogOpen(false);
           setEditingBanner(null);
+          setImagePreview(null);
+          setUploadedImageUrl(null);
         } else {
           console.error('Failed to update banner:', response.statusText);
+          const errorData = await response.json().catch(() => ({}));
+          alert(`Failed to update banner: ${errorData.message || response.statusText}`);
         }
       } else {
         // Add new banner
+        if (!uploadedImageUrl) {
+          alert('Please upload a banner image');
+          return;
+        }
+
         const response = await fetch(api.homeBanners.create.path, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
+          credentials: 'include',
           body: JSON.stringify({
             title: data.title,
             description: data.description,
-            imageUrl: "/placeholder-banner.jpg", // Default image - in real implementation, this would come from file upload
+            imageUrl: uploadedImageUrl,
             linkUrl: data.linkUrl,
             position: data.position,
             status: data.status
@@ -149,12 +178,17 @@ export default function AdminHomeBanner() {
           setBanners([...banners, newBanner]);
           setIsDialogOpen(false);
           setEditingBanner(null);
+          setImagePreview(null);
+          setUploadedImageUrl(null);
         } else {
           console.error('Failed to create banner:', response.statusText);
+          const errorData = await response.json().catch(() => ({}));
+          alert(`Failed to create banner: ${errorData.message || response.statusText}`);
         }
       }
     } catch (error) {
       console.error('Error saving banner:', error);
+      alert('Error saving banner: ' + (error as Error).message);
     } finally {
       setSaving(false);
       form.reset();
@@ -183,28 +217,109 @@ export default function AdminHomeBanner() {
       position: banner.position,
       status: banner.status,
     });
+    setImagePreview(banner.imageUrl);
+    setUploadedImageUrl(banner.imageUrl);
     setIsDialogOpen(true);
+  };
+
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.match('image.*')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5MB limit');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Check if user is authenticated by making a simple API call
+    try {
+      const response = await fetch('/api/user', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        alert('Authentication required. Please log in first.');
+        return;
+      }
+    } catch (error) {
+      alert('Authentication required. Please log in first.');
+      return;
+    }
+
+    // Upload image to server
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      setSaving(true); // Use saving state to indicate upload in progress
+
+      const response = await fetch('/api/images/banner', {
+        method: 'POST',
+        credentials: 'include', // Include session cookies for authentication
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.url) {
+          setUploadedImageUrl(result.url);
+          console.log('Image uploaded successfully:', result.url);
+        } else {
+          console.error('Upload succeeded but no URL returned:', result);
+          alert('Upload succeeded but image URL not returned. Please try again.');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to upload image:', response.statusText, errorData);
+        alert(`Failed to upload image: ${errorData.message || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Error uploading image: ' + (error as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Handle delete action
   const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this banner?")) {
+      setDeletingId(id);
       try {
         const response = await fetch(buildUrl(api.homeBanners.delete.path, { id }), {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          },
+          credentials: 'include'
         });
 
         if (response.ok) {
           setBanners(banners.filter(ban => ban.id !== id));
         } else {
           console.error('Failed to delete banner:', response.statusText);
+          alert('Failed to delete banner. Please try again.');
         }
       } catch (error) {
         console.error('Error deleting banner:', error);
+        alert('An error occurred while deleting the banner. Please try again.');
+      } finally {
+        setDeletingId(null);
       }
     }
   };
@@ -267,11 +382,34 @@ export default function AdminHomeBanner() {
                           <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground" />
                           <p className="mt-2 text-sm text-muted-foreground">Click to upload banner image</p>
                           <p className="text-xs text-muted-foreground">JPG, PNG up to 5MB</p>
-                          <Button variant="outline" className="mt-4">
+                          <Input
+                            id="image"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageUpload}
+                          />
+                          <Button
+                            variant="outline"
+                            className="mt-4"
+                            onClick={() => document.getElementById('image')?.click()}
+                          >
                             <Upload className="w-4 h-4 mr-2" />
                             Upload Image
                           </Button>
                         </div>
+                        {imagePreview && (
+                          <div className="mt-4">
+                            <Label>Preview</Label>
+                            <div className="mt-2 border rounded-md p-2">
+                              <img
+                                src={imagePreview}
+                                alt="Banner preview"
+                                className="w-full h-32 object-cover rounded-md"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -365,15 +503,29 @@ export default function AdminHomeBanner() {
                   />
                   
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingBanner(null);
-                      form.reset();
-                    }}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setEditingBanner(null);
+                        setImagePreview(null);
+                        setUploadedImageUrl(null);
+                        form.reset();
+                      }}
+                      disabled={saving}
+                    >
                       Cancel
                     </Button>
-                    <Button type="submit">
-                      {editingBanner ? "Update Banner" : "Add Banner"}
+                    <Button type="submit" disabled={saving}>
+                      {saving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {editingBanner ? "Updating..." : "Adding..."}
+                        </>
+                      ) : (
+                        editingBanner ? "Update Banner" : "Add Banner"
+                      )}
                     </Button>
                   </div>
                 </form>
@@ -430,8 +582,17 @@ export default function AdminHomeBanner() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(banner)}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(banner.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(banner.id)}
+                            disabled={deletingId === banner.id}
+                          >
+                            {deletingId === banner.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            )}
                           </Button>
                         </div>
                       </TableCell>
@@ -458,23 +619,39 @@ export default function AdminHomeBanner() {
             <CardContent>
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground mb-2">Desktop Preview</div>
-                <div className="relative h-48 bg-gradient-to-r from-primary to-indigo-600 rounded-lg overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center text-white text-center p-4">
-                    <div>
-                      <h3 className="text-xl font-bold mb-2">Special Water Delivery Offer</h3>
-                      <p className="text-sm">Get 20% discount on water tanker services this month only</p>
+                <div className="relative h-48 rounded-lg overflow-hidden">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Banner preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-primary to-indigo-600 flex items-center justify-center">
+                      <div className="text-white text-center p-4">
+                        <h3 className="text-xl font-bold mb-2">{form.watch('title') || 'Banner Title'}</h3>
+                        <p className="text-sm">{form.watch('description') || 'Banner description will appear here'}</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-                
+
                 <div className="text-sm text-muted-foreground mb-2">Mobile Preview</div>
-                <div className="relative h-32 bg-gradient-to-r from-primary to-indigo-600 rounded-lg overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center text-white text-center p-2">
-                    <div>
-                      <h3 className="text-lg font-bold mb-1">Special Offer</h3>
-                      <p className="text-xs">20% discount on water delivery</p>
+                <div className="relative h-32 rounded-lg overflow-hidden">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Banner preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-primary to-indigo-600 flex items-center justify-center">
+                      <div className="text-white text-center p-2">
+                        <h3 className="text-lg font-bold mb-1">{form.watch('title') || 'Title'}</h3>
+                        <p className="text-xs">{form.watch('description') || 'Description'}</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardContent>

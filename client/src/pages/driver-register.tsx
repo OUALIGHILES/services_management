@@ -1,134 +1,128 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useZones } from "@/hooks/use-zones";
+import { useServiceCategories } from "@/hooks/use-service-categories";
+import { useSubcategories } from "@/hooks/use-subcategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Redirect } from "wouter";
-import { Loader2, Camera, Upload, MapPin } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Camera, Upload, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Schemas for multi-step form
-const personalInfoSchema = z.object({
+// Schema for the consolidated form
+const driverRegistrationSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
   phone: z.string().min(10, "Phone number is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  profilePhoto: z.string().optional(),
-});
-
-const vehicleInfoSchema = z.object({
+  confirmPassword: z.string().min(6, "Password confirmation is required"),
   vehicleType: z.string().min(1, "Vehicle type is required"),
-  vehicleName: z.string().min(1, "Vehicle name is required"),
-  vehicleCapacity: z.string().min(1, "Vehicle capacity is required"),
-  vehicleImage: z.string().optional(),
   baseFare: z.string().min(1, "Base fare is required"),
   pricePerKm: z.string().min(1, "Price per kilometer is required"),
-});
-
-const serviceInfoSchema = z.object({
   serviceCategory: z.string().min(1, "Service category is required"),
   subService: z.string().min(1, "Sub-service is required"),
-});
-
-const zoneInfoSchema = z.object({
-  operatingZones: z.array(z.string()).min(1, "At least one operating zone is required"),
-});
-
-const documentInfoSchema = z.object({
-  driverLicense: z.string().optional(),
-  vehicleRegistration: z.string().optional(),
-  nationalId: z.string().optional(),
-  insurance: z.string().optional(),
+  profilePhoto: z.string().optional(),
+  vehicleImage: z.string().optional(),
+  newServiceCategory: z.string().optional(),
+  newSubService: z.string().optional(),
 });
 
 export default function DriverRegisterPage() {
   const { user, registerMutation } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5;
+  const { data: serviceCategories, isLoading: categoriesLoading } = useServiceCategories();
+  const { data: allSubcategories, isLoading: subcategoriesLoading } = useSubcategories();
+  const [newCategoryMode, setNewCategoryMode] = useState(false);
+  const [newSubServiceMode, setNewSubServiceMode] = useState(false);
+  const [availableSubServices, setAvailableSubServices] = useState<string[]>([]);
 
-  // Personal Info Form
-  const personalInfoForm = useForm({
-    resolver: zodResolver(personalInfoSchema),
+  // Form setup
+  const form = useForm({
+    resolver: zodResolver(driverRegistrationSchema),
     defaultValues: {
       fullName: "",
       phone: "",
       email: "",
       password: "",
-      profilePhoto: "",
-    },
-  });
-
-  // Vehicle Info Form
-  const vehicleInfoForm = useForm({
-    resolver: zodResolver(vehicleInfoSchema),
-    defaultValues: {
+      confirmPassword: "",
       vehicleType: "",
-      vehicleName: "",
-      vehicleCapacity: "",
-      vehicleImage: "",
       baseFare: "",
       pricePerKm: "",
-    },
-  });
-
-  // Service Info Form
-  const serviceInfoForm = useForm({
-    resolver: zodResolver(serviceInfoSchema),
-    defaultValues: {
       serviceCategory: "",
       subService: "",
+      profilePhoto: "",
+      vehicleImage: "",
+      newServiceCategory: "",
+      newSubService: "",
     },
   });
 
-  // Zone Info Form
-  const zoneInfoForm = useForm({
-    resolver: zodResolver(zoneInfoSchema),
-    defaultValues: {
-      operatingZones: [],
-    },
-  });
+  if (categoriesLoading || subcategoriesLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-12 px-4 sm:px-6 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+          <p className="mt-2 text-lg text-gray-600">Loading service categories...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Document Info Form
-  const documentInfoForm = useForm({
-    resolver: zodResolver(documentInfoSchema),
-    defaultValues: {
-      driverLicense: "",
-      vehicleRegistration: "",
-      nationalId: "",
-      insurance: "",
-    },
-  });
-
-  // Ensure forms are properly isolated when step changes
+  // Update sub-services based on selected category
   useEffect(() => {
-    // Focus on the first field of the current step to ensure proper isolation
-    setTimeout(() => {
-      let firstField;
-      switch (currentStep) {
-        case 1:
-          firstField = document.querySelector('#fullName') as HTMLInputElement;
+    const selectedCategory = form.watch("serviceCategory");
+    if (selectedCategory && allSubcategories) {
+      // Filter subcategories based on the selected category
+      const filteredSubcategories = allSubcategories.filter(
+        sub => sub.categoryId === selectedCategory
+      );
+      setAvailableSubServices(filteredSubcategories.map(sub => sub.id));
+    } else {
+      setAvailableSubServices([]);
+    }
+  }, [form.watch("serviceCategory"), allSubcategories]);
+
+  // Handle password confirmation validation
+  useEffect(() => {
+    const password = form.watch("password");
+    const confirmPassword = form.watch("confirmPassword");
+    
+    if (password && confirmPassword && password !== confirmPassword) {
+      form.setError("confirmPassword", {
+        type: "manual",
+        message: "Passwords do not match"
+      });
+    } else if (password && confirmPassword && password === confirmPassword) {
+      form.clearErrors("confirmPassword");
+    }
+  }, [form.watch("password"), form.watch("confirmPassword")]);
+
+  // Update sub-services based on selected category
+  useEffect(() => {
+    const selectedCategory = form.watch("serviceCategory");
+    if (selectedCategory) {
+      // Define sub-services based on category
+      switch (selectedCategory) {
+        case "water_tanker":
+          setAvailableSubServices(["5000l", "10000l", "15000l", "20000l"]);
           break;
-        case 2:
-          firstField = document.querySelector('#vehicleType') as HTMLInputElement;
+        case "sand_transport":
+          setAvailableSubServices(["fine_sand", "coarse_sand", "construction_sand"]);
           break;
-        case 3:
-          firstField = document.querySelector('#serviceCategory') as HTMLInputElement;
+        case "construction":
+          setAvailableSubServices(["cement", "steel", "bricks"]);
+          break;
+        case "delivery":
+          setAvailableSubServices(["small", "medium", "large", "heavy"]);
           break;
         default:
-          break;
+          setAvailableSubServices([]);
       }
-      if (firstField) {
-        firstField.focus();
-      }
-    }, 100);
-  }, [currentStep]);
+    }
+  }, [form.watch("serviceCategory")]);
 
   if (user) {
     if (user.role === "admin" || user.role === "subadmin") return <Redirect to="/admin" />;
@@ -136,631 +130,549 @@ export default function DriverRegisterPage() {
     return <Redirect to="/customer" />;
   }
 
-  const onSubmitPersonalInfo = (data: any) => {
-    setCurrentStep(2);
-  };
+  const onSubmit = async (data: any) => {
+    // Prepare registration data
+    let serviceCategory = data.serviceCategory;
+    let subService = data.subService;
 
-  const onSubmitVehicleInfo = (data: any) => {
-    setCurrentStep(3);
-  };
+    // If user selected "new" category mode, use the new category value
+    if (newCategoryMode && data.newServiceCategory) {
+      serviceCategory = data.newServiceCategory;
+    }
 
-  const onSubmitServiceInfo = (data: any) => {
-    setCurrentStep(4);
-  };
+    // If user selected "new" sub-service mode, use the new sub-service value
+    if (newSubServiceMode && data.newSubService) {
+      subService = data.newSubService;
+    }
 
-  const onSubmitZoneInfo = (data: any) => {
-    setCurrentStep(5);
-  };
-
-  const onSubmitDocuments = async (data: any) => {
-    // Combine all form data for registration
     const registrationData = {
-      ...personalInfoForm.getValues(),
-      ...vehicleInfoForm.getValues(),
-      ...serviceInfoForm.getValues(),
-      ...zoneInfoForm.getValues(),
+      ...data,
       role: "driver",
+      status: "pending", // Driver registration is pending admin approval
+      serviceCategory,
+      subService,
     };
 
+    // Remove the temporary fields that were only for UI
+    delete registrationData.newServiceCategory;
+    delete registrationData.newSubService;
+
     try {
-      // Register the user first
+      // Register the user
       const userData = await registerMutation.mutateAsync(registrationData);
 
-      // After successful registration, upload documents if they exist
-      const documents = documentInfoForm.getValues();
-      const uploadPromises = [];
-
-      if (documents.driverLicense instanceof File) {
-        const formData = new FormData();
-        formData.append('file', documents.driverLicense);
-        formData.append('documentType', 'license');
-        uploadPromises.push(fetch('/api/drivers/upload-document', {
-          method: 'POST',
-          body: formData,
-        }));
-      }
-
-      if (documents.vehicleRegistration instanceof File) {
-        const formData = new FormData();
-        formData.append('file', documents.vehicleRegistration);
-        formData.append('documentType', 'vehicle_registration');
-        uploadPromises.push(fetch('/api/drivers/upload-document', {
-          method: 'POST',
-          body: formData,
-        }));
-      }
-
-      if (documents.nationalId instanceof File) {
-        const formData = new FormData();
-        formData.append('file', documents.nationalId);
-        formData.append('documentType', 'national_id');
-        uploadPromises.push(fetch('/api/drivers/upload-document', {
-          method: 'POST',
-          body: formData,
-        }));
-      }
-
-      if (documents.insurance instanceof File) {
-        const formData = new FormData();
-        formData.append('file', documents.insurance);
-        formData.append('documentType', 'insurance');
-        uploadPromises.push(fetch('/api/drivers/upload-document', {
-          method: 'POST',
-          body: formData,
-        }));
-      }
-
-      // Execute all document uploads
-      if (uploadPromises.length > 0) {
-        await Promise.all(uploadPromises);
-      }
-
-      // Registration complete
+      // Show success message
       alert("Registration completed successfully! Your application is pending approval.");
     } catch (error) {
       console.error("Registration failed:", error);
+      alert("Registration failed. Please try again.");
     }
   };
 
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+  // Handle image upload for profile photo
+  const handleProfilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        form.setValue("profilePhoto", reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold">Personal Information</h2>
-              <p className="text-muted-foreground">Tell us about yourself</p>
-            </div>
-
-            <Form {...personalInfoForm}>
-              <form onSubmit={personalInfoForm.handleSubmit(onSubmitPersonalInfo)} className="space-y-4">
-                <FormField
-                  control={personalInfoForm.control}
-                  name="fullName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl><Input id="fullName" placeholder="John Doe" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={personalInfoForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
-                      <FormControl><Input id="phone" placeholder="+1234567890" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={personalInfoForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl><Input id="email" placeholder="john@example.com" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={personalInfoForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl><Input id="password" type="password" placeholder="••••••" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="relative">
-                    <div className="w-24 h-24 rounded-full bg-gray-200 border-2 border-dashed flex items-center justify-center">
-                      {personalInfoForm.getValues("profilePhoto") ? (
-                        <img
-                          src={personalInfoForm.getValues("profilePhoto")}
-                          alt="Profile"
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        <Camera className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <Input
-                      type="file"
-                      className="hidden"
-                      id="profile-photo"
-                      accept="image/*"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            personalInfoForm.setValue("profilePhoto", reader.result as string);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <label htmlFor="profile-photo">
-                      <Button type="button" variant="outline" size="sm" className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload
-                      </Button>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <div></div> {/* Empty div for spacing */}
-                  <Button type="submit" className="w-32">
-                    Continue
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold">Vehicle Information</h2>
-              <p className="text-muted-foreground">Tell us about your vehicle</p>
-            </div>
-
-            <Form {...vehicleInfoForm}>
-              <form onSubmit={vehicleInfoForm.handleSubmit(onSubmitVehicleInfo)} className="space-y-4">
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="vehicleType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Type</FormLabel>
-                      <FormControl>
-                        <Input id="vehicleType" placeholder="Enter vehicle type (e.g., Water Tanker, Delivery Van, etc.)" {...field} autoComplete="off" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="vehicleName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Name</FormLabel>
-                      <FormControl><Input id="vehicleName" placeholder="e.g., My Delivery Truck" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="vehicleCapacity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Capacity</FormLabel>
-                      <FormControl><Input id="vehicleCapacity" placeholder="e.g., 5000L, 10 tons" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="baseFare"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Base Fare</FormLabel>
-                      <FormControl><Input id="baseFare" placeholder="e.g., 50.00" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="pricePerKm"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price per Kilometer</FormLabel>
-                      <FormControl><Input id="pricePerKm" placeholder="e.g., 5.00" {...field} autoComplete="off" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="relative">
-                    <div className="w-32 h-24 rounded-md bg-gray-200 border-2 border-dashed flex items-center justify-center">
-                      {vehicleInfoForm.getValues("vehicleImage") ? (
-                        <img
-                          src={vehicleInfoForm.getValues("vehicleImage")}
-                          alt="Vehicle"
-                          className="w-full h-full rounded-md object-cover"
-                        />
-                      ) : (
-                        <Camera className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <Input
-                      type="file"
-                      className="hidden"
-                      id="vehicle-image"
-                      accept="image/*"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            vehicleInfoForm.setValue("vehicleImage", reader.result as string);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    <label htmlFor="vehicle-image">
-                      <Button type="button" variant="outline" size="sm" className="mt-2">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Vehicle Image
-                      </Button>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    Back
-                  </Button>
-                  <Button type="submit" className="w-32">
-                    Continue
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        );
-      
-      case 3:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold">Service & Category</h2>
-              <p className="text-muted-foreground">Select your service categories</p>
-            </div>
-
-            <Form {...serviceInfoForm}>
-              <form onSubmit={serviceInfoForm.handleSubmit(onSubmitServiceInfo)} className="space-y-4">
-                <FormField
-                  control={serviceInfoForm.control}
-                  name="serviceCategory"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Main Service Category</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger id="serviceCategory">
-                            <SelectValue placeholder="Select main service" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="water_tanker">Water Tanker</SelectItem>
-                          <SelectItem value="sand_transport">Sand Transport</SelectItem>
-                          <SelectItem value="construction">Construction Materials</SelectItem>
-                          <SelectItem value="delivery">General Delivery</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={serviceInfoForm.control}
-                  name="subService"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sub-Service</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger id="subService">
-                            <SelectValue placeholder="Select sub-service" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="5000l">5,000L Tanker</SelectItem>
-                          <SelectItem value="10000l">10,000L Tanker</SelectItem>
-                          <SelectItem value="15000l">15,000L Tanker</SelectItem>
-                          <SelectItem value="fine_sand">Fine Sand</SelectItem>
-                          <SelectItem value="coarse_sand">Coarse Sand</SelectItem>
-                          <SelectItem value="construction_sand">Construction Sand</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-between pt-4">
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    Back
-                  </Button>
-                  <Button type="submit" className="w-32">
-                    Continue
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        );
-      
-      case 4:
-        const { data: zones, isLoading: zonesLoading, error: zonesError } = useZones();
-
-        if (zonesLoading) {
-          return (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold">Operating Zones</h2>
-                <p className="text-muted-foreground">Select where you operate</p>
-              </div>
-
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            </div>
-          );
-        }
-
-        if (zonesError) {
-          return (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold">Operating Zones</h2>
-                <p className="text-muted-foreground">Select where you operate</p>
-              </div>
-
-              <div className="text-center py-8 text-red-500">
-                Failed to load zones. Please try again later.
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold">Operating Zones</h2>
-              <p className="text-muted-foreground">Select where you operate</p>
-            </div>
-
-            <Form {...zoneInfoForm}>
-              <form onSubmit={zoneInfoForm.handleSubmit(onSubmitZoneInfo)} className="space-y-4">
-                <div className="space-y-2">
-                  <FormLabel>Operating Zones</FormLabel>
-                  <div className="flex flex-wrap gap-2">
-                    {zones?.map((zone) => (
-                      <Button
-                        key={zone.id}
-                        type="button"
-                        variant={zoneInfoForm.getValues("operatingZones").includes(zone.id) ? "default" : "outline"}
-                        onClick={() => {
-                          const currentZones = zoneInfoForm.getValues("operatingZones");
-                          if (currentZones.includes(zone.id)) {
-                            zoneInfoForm.setValue("operatingZones", currentZones.filter(z => z !== zone.id));
-                          } else {
-                            zoneInfoForm.setValue("operatingZones", [...currentZones, zone.id]);
-                          }
-                        }}
-                      >
-                        <MapPin className="w-4 h-4 mr-2" />
-                        {zone.name}
-                      </Button>
-                    ))}
-                  </div>
-                  <FormMessage />
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    Back
-                  </Button>
-                  <Button type="submit" className="w-32">
-                    Continue
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        );
-      
-      case 5:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold">Document Upload</h2>
-              <p className="text-muted-foreground">Upload required documents</p>
-            </div>
-
-            <Form {...documentInfoForm}>
-              <form onSubmit={documentInfoForm.handleSubmit(onSubmitDocuments)} className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-medium mb-2">Driver License</h3>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <Input
-                          type="file"
-                          className="hidden"
-                          id="driver-license"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              documentInfoForm.setValue("driverLicense", e.target.files[0]);
-                            }
-                          }}
-                        />
-                        <label htmlFor="driver-license">
-                          <div className="border rounded-md p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50">
-                            <Upload className="w-8 h-8 text-gray-400" />
-                            <span className="ml-2 text-gray-600">Upload Driver License</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium mb-2">Vehicle Registration</h3>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <Input
-                          type="file"
-                          className="hidden"
-                          id="vehicle-registration"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              documentInfoForm.setValue("vehicleRegistration", e.target.files[0]);
-                            }
-                          }}
-                        />
-                        <label htmlFor="vehicle-registration">
-                          <div className="border rounded-md p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50">
-                            <Upload className="w-8 h-8 text-gray-400" />
-                            <span className="ml-2 text-gray-600">Upload Vehicle Registration</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium mb-2">National ID</h3>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <Input
-                          type="file"
-                          className="hidden"
-                          id="national-id"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              documentInfoForm.setValue("nationalId", e.target.files[0]);
-                            }
-                          }}
-                        />
-                        <label htmlFor="national-id">
-                          <div className="border rounded-md p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50">
-                            <Upload className="w-8 h-8 text-gray-400" />
-                            <span className="ml-2 text-gray-600">Upload National ID</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium mb-2">Insurance Documents</h3>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-1">
-                        <Input
-                          type="file"
-                          className="hidden"
-                          id="insurance"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              documentInfoForm.setValue("insurance", e.target.files[0]);
-                            }
-                          }}
-                        />
-                        <label htmlFor="insurance">
-                          <div className="border rounded-md p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50">
-                            <Upload className="w-8 h-8 text-gray-400" />
-                            <span className="ml-2 text-gray-600">Upload Insurance Documents</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between pt-4">
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    Back
-                  </Button>
-                  <Button type="submit" className="w-32" disabled={registerMutation.isPending}>
-                    {registerMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Submit"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        );
-      
-      default:
-        return null;
+  // Handle image upload for vehicle photo
+  const handleVehiclePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        form.setValue("vehicleImage", reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-blue-50 p-4">
-      <div className="w-full max-w-2xl">
-        <Card className="shadow-2xl border-none">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-display">Driver Registration</CardTitle>
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-              <div 
-                className="bg-primary h-2.5 rounded-full transition-all duration-300" 
-                style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-              ></div>
-            </div>
-            <div className="text-sm text-muted-foreground mt-2">
-              Step {currentStep} of {totalSteps}
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-12 px-4 sm:px-6">
+      <div className="max-w-4xl mx-auto">
+        <Card className="overflow-hidden shadow-2xl">
+          <CardHeader className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-center py-6">
+            <CardTitle className="text-2xl font-bold">Driver Registration</CardTitle>
+            <p className="text-purple-100">Complete your profile information</p>
           </CardHeader>
-          <CardContent>
-            {renderStep()}
+          <CardContent className="p-8">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                {/* Personal Information Section */}
+                <div className="space-y-6">
+                  <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Personal Information</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="fullName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Full Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="fullName"
+                              placeholder="John Doe"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Phone Number</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="phone"
+                              placeholder="+1234567890"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="email"
+                              placeholder="john@example.com"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="password"
+                              type="password"
+                              placeholder="••••••"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Confirm Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="confirmPassword"
+                              type="password"
+                              placeholder="••••••"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Profile Photo Upload */}
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full bg-gray-200 border-2 border-dashed flex items-center justify-center">
+                        {form.getValues("profilePhoto") ? (
+                          <img
+                            src={form.getValues("profilePhoto")}
+                            alt="Profile"
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <Camera className="w-8 h-8 text-gray-400" />
+                        )}
+                      </div>
+                      <Input
+                        type="file"
+                        className="hidden"
+                        id="profile-photo"
+                        accept="image/*"
+                        onChange={handleProfilePhotoUpload}
+                      />
+                      <label htmlFor="profile-photo">
+                        <Button type="button" variant="outline" size="sm" className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Profile Photo
+                        </Button>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle Information Section */}
+                <div className="space-y-6">
+                  <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Vehicle Information</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="vehicleType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Vehicle Type</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="vehicleType"
+                              placeholder="Enter vehicle type (e.g., Water Tanker, Delivery Van, etc.)"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                              autoCapitalize="off"
+                              autoCorrect="off"
+                              spellCheck="false"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="baseFare"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Base Fare</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="baseFare"
+                              placeholder="e.g., 50.00"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                              autoCapitalize="off"
+                              autoCorrect="off"
+                              spellCheck="false"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="pricePerKm"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-base">Price per Kilometer</FormLabel>
+                          <FormControl>
+                            <Input
+                              id="pricePerKm"
+                              placeholder="e.g., 5.00"
+                              className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                              {...field}
+                              autoComplete="off"
+                              autoCapitalize="off"
+                              autoCorrect="off"
+                              spellCheck="false"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Vehicle Photo Upload */}
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative">
+                      <div className="w-32 h-24 rounded-md bg-gray-200 border-2 border-dashed flex items-center justify-center">
+                        {form.getValues("vehicleImage") ? (
+                          <img
+                            src={form.getValues("vehicleImage")}
+                            alt="Vehicle"
+                            className="w-full h-full rounded-md object-cover"
+                          />
+                        ) : (
+                          <Camera className="w-8 h-8 text-gray-400" />
+                        )}
+                      </div>
+                      <Input
+                        type="file"
+                        className="hidden"
+                        id="vehicle-image"
+                        accept="image/*"
+                        onChange={handleVehiclePhotoUpload}
+                      />
+                      <label htmlFor="vehicle-image">
+                        <Button type="button" variant="outline" size="sm" className="mt-2">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Vehicle Photo
+                        </Button>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Service Category Section */}
+                <div className="space-y-6">
+                  <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Service Category</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <FormLabel className="text-base">Main Service Category</FormLabel>
+                      {!newCategoryMode ? (
+                        <div className="flex gap-2 mt-2">
+                          <FormField
+                            control={form.control}
+                            name="serviceCategory"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger
+                                      id="serviceCategory"
+                                      className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                    >
+                                      <SelectValue placeholder="Select main service" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {serviceCategories?.map((category) => (
+                                      <SelectItem key={category.id} value={category.id}>
+                                        {typeof category.name === 'object' ? category.name.en || category.name.ar || category.name.ur : category.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNewCategoryMode(true)}
+                            className="h-12 mt-6"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            New
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 mt-2">
+                          <FormField
+                            control={form.control}
+                            name="newServiceCategory"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormControl>
+                                  <Input
+                                    id="newServiceCategory"
+                                    placeholder="Enter new service category"
+                                    className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                    {...field}
+                                    autoComplete="off"
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="flex gap-1 mt-6">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setNewCategoryMode(false);
+                                form.setValue("newServiceCategory", "");
+                              }}
+                              className="h-10"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                const newCategory = form.getValues("newServiceCategory");
+                                if (newCategory) {
+                                  form.setValue("serviceCategory", newCategory);
+                                  setNewCategoryMode(false);
+                                }
+                              }}
+                              className="h-10"
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <FormLabel className="text-base">Sub-Service</FormLabel>
+                      {!newSubServiceMode ? (
+                        <div className="flex gap-2 mt-2">
+                          <FormField
+                            control={form.control}
+                            name="subService"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger
+                                      id="subService"
+                                      className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                    >
+                                      <SelectValue placeholder="Select sub-service" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {allSubcategories
+                                      ?.filter(sub => sub.categoryId === form.watch("serviceCategory"))
+                                      .map((subcategory) => (
+                                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                                          {typeof subcategory.name === 'object' ? subcategory.name.en || subcategory.name.ar || subcategory.name.ur : subcategory.name}
+                                        </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNewSubServiceMode(true)}
+                            className="h-12 mt-6"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            New
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 mt-2">
+                          <FormField
+                            control={form.control}
+                            name="newSubService"
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormControl>
+                                  <Input
+                                    id="newSubService"
+                                    placeholder="Enter new sub-service"
+                                    className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                    {...field}
+                                    autoComplete="off"
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="flex gap-1 mt-6">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setNewSubServiceMode(false);
+                                form.setValue("newSubService", "");
+                              }}
+                              className="h-10"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                const newSubService = form.getValues("newSubService");
+                                if (newSubService) {
+                                  form.setValue("subService", newSubService);
+                                  setNewSubServiceMode(false);
+                                }
+                              }}
+                              className="h-10"
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex justify-center pt-8">
+                  <Button
+                    type="submit"
+                    disabled={registerMutation.isPending}
+                    className="w-48 h-12 text-base bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                  >
+                    {registerMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Registering...
+                      </>
+                    ) : (
+                      "Complete Registration"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </CardContent>
         </Card>
       </div>

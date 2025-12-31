@@ -176,7 +176,11 @@ export const api = {
     updateDriverStatus: {
       method: 'POST' as const,
       path: '/api/drivers/update-status',
-      input: z.object({ status: z.string() }),
+      input: z.object({
+        status: z.string(),
+        serviceCategory: z.string().optional(),
+        subService: z.string().optional()
+      }),
       responses: { 200: z.custom<typeof drivers.$inferSelect>() },
     },
     create: {
@@ -261,6 +265,11 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/products/:id',
       responses: { 200: z.void() },
+    },
+    getBySubcategory: {
+      method: 'GET' as const,
+      path: '/api/subcategories/:subcategoryId/products',
+      responses: { 200: z.array(z.custom<typeof products.$inferSelect>()) },
     },
   },
   services: {

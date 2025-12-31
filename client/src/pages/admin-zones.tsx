@@ -685,7 +685,7 @@ export default function AdminZones() {
                     return (
                       <TableRow key={price.id}>
                         <TableCell className="font-medium">
-                          {service ? service.name.en || service.name : 'Unknown Service'}
+                          {service ? (typeof service.name === 'object' ? service.name.en || service.name.ar || service.name.ur : service.name) : 'Unknown Service'}
                         </TableCell>
                         <TableCell>
                           {zone ? zone.name : 'Unknown Zone'}
@@ -912,19 +912,25 @@ export default function AdminZones() {
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground">Service</h4>
                     <p>
-                      {services?.find(s => s.id === viewingPricing.serviceId)
-                        ? (services.find(s => s.id === viewingPricing.serviceId)?.name as any).en ||
-                          (services.find(s => s.id === viewingPricing.serviceId)?.name as any) ||
-                          'Unknown Service'
-                        : 'Unknown Service'}
+                      {(() => {
+                        const service = services?.find(s => s.id === viewingPricing.serviceId);
+                        return service
+                          ? (typeof service.name === 'object'
+                            ? (service.name as any).en ||
+                              (service.name as any).ar ||
+                              (service.name as any).ur
+                            : service.name)
+                          : 'Unknown Service';
+                      })()}
                     </p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground">Zone</h4>
                     <p>
-                      {zones?.find(z => z.id === viewingPricing.zoneId)
-                        ? zones.find(z => z.id === viewingPricing.zoneId)?.name
-                        : 'Unknown Zone'}
+                      {(() => {
+                        const zone = zones?.find(z => z.id === viewingPricing.zoneId);
+                        return zone ? zone.name : 'Unknown Zone';
+                      })()}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

@@ -19,9 +19,11 @@ export function getDb() {
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       // Configure for serverless
-      max: 1, // Limit connections since each function is isolated
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      max: 10, // Increase max connections
+      idleTimeoutMillis: 120000, // Increase idle timeout to 120 seconds
+      connectionTimeoutMillis: 20000, // Increase connection timeout to 20 seconds
+      maxUses: 750, // Close connection after 750 uses to prevent memory leaks
+      keepAlive: true, // Enable keep-alive
     });
 
     dbInstance = drizzle(pool, { schema });

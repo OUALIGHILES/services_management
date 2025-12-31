@@ -14,13 +14,49 @@ export function useProducts() {
   });
 }
 
+export function useProductsByCategory(categoryId: string) {
+  return useQuery({
+    queryKey: ['products-by-category', categoryId],
+    queryFn: async () => {
+      console.log('Fetching products for category:', categoryId);
+      const res = await fetch(`/api/categories/${categoryId}/products`);
+      console.log('Response status:', res.status);
+      if (!res.ok) throw new Error("Failed to fetch products by category");
+      const data = await res.json();
+      console.log('Fetched products:', data);
+      return data as Promise<Product[]>;
+    },
+    enabled: !!categoryId,
+  });
+}
+
+export function useProductsBySubcategory(subcategoryId: string) {
+  return useQuery({
+    queryKey: ['products-by-subcategory', subcategoryId],
+    queryFn: async () => {
+      console.log('Fetching products for subcategory:', subcategoryId);
+      const res = await fetch(`/api/subcategories/${subcategoryId}/products`);
+      console.log('Response status:', res.status);
+      if (!res.ok) throw new Error("Failed to fetch products by subcategory");
+      const data = await res.json();
+      console.log('Fetched products:', data);
+      return data as Promise<Product[]>;
+    },
+    enabled: !!subcategoryId,
+  });
+}
+
 export function useProduct(id: string) {
   return useQuery({
     queryKey: [api.products.get.path, id],
     queryFn: async () => {
       const url = buildUrl(api.products.get.path, { id });
       const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch product");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Failed to fetch product:', errorData);
+        throw new Error(errorData.message || "Failed to fetch product");
+      }
       return res.json() as Promise<Product>;
     },
     enabled: !!id,

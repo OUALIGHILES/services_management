@@ -27,17 +27,61 @@ export function useDriver(id: string) {
   });
 }
 
+// For drivers to update their own status
 export function useUpdateDriverStatus() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ status, serviceCategory, subService }: { status: string; serviceCategory?: string; subService?: string }) => {
       // Use the new endpoint that checks wallet balance
       const res = await fetch(api.drivers.updateDriverStatus.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, serviceCategory, subService }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to update status");
+      }
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [api.drivers.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.auth.me.path] }); // Invalidate user profile to update status in UI
+
+      let message = "Driver status changed successfully.";
+      if (variables.status === "approved") {
+        message = "Driver approved successfully!";
+      } else if (variables.status === "offline") {
+        message = "Driver rejected successfully!";
+      }
+
+      toast({ title: "Status Updated", description: message });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error Updating Status",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+}
+
+// For admins to update any driver's status
+export function useUpdateAnyDriverStatus() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, status, serviceCategory, subService }: { id: string; status: string; serviceCategory?: string; subService?: string }) => {
+      const url = buildUrl(api.drivers.updateStatus.path, { id });
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, serviceCategory, subService }),
         credentials: "include",
       });
       if (!res.ok) {

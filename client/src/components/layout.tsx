@@ -36,8 +36,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const getLinks = () => {
     if (!user) return [];
-    
-    const common = [];
+
+    const common: { href: string; label: string; icon: any }[] = [];
 
     if (user.role === "admin" || user.role === "subadmin") {
       return [

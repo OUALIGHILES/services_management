@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle } from "lucide-react";
+import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle, MapPin, Camera, CreditCard, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Schema
@@ -23,6 +23,8 @@ const orderSchema = z.object({
   notes: z.string().optional(),
   fragile: z.boolean().optional(),
   gateCode: z.string().optional(),
+  paymentMethod: z.enum(["cash", "electronic"], { required_error: "Payment method is required" }),
+  photos: z.array(z.string()).optional(),
 });
 
 export default function BookService() {
@@ -42,6 +44,8 @@ export default function BookService() {
       notes: "",
       fragile: false,
       gateCode: "",
+      paymentMethod: "cash",
+      photos: [],
     },
   });
 
@@ -61,10 +65,20 @@ export default function BookService() {
       notes: data.notes,
       subService: data.orderType === "quote" ? "quote_request" : undefined,
       requestNumber: `REQ-${Math.floor(Math.random() * 100000)}`, // Simple generation
+      paymentMethod: data.paymentMethod,
+      photos: data.photos,
     };
 
     createOrder.mutate(payload, {
-      onSuccess: () => setLocation("/customer/orders"),
+      onSuccess: () => {
+        if (data.orderType === "quote") {
+          // Redirect to offers page to see available quotes
+          setLocation("/customer/offers");
+        } else {
+          // For direct booking, go to orders
+          setLocation("/customer/orders");
+        }
+      },
     });
   };
 
@@ -96,7 +110,7 @@ export default function BookService() {
                       <SelectContent>
                         {services?.map(service => (
                           <SelectItem key={service.id} value={service.id}>
-                            {(service.name as any).en}
+                            {typeof service.name === 'object' ? service.name.en || service.name.ar || service.name.ur : service.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -227,14 +241,81 @@ export default function BookService() {
                 />
               </div>
 
+              {/* Payment Method */}
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>💳 Payment Method</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant={field.value === "cash" ? "default" : "outline"}
+                        onClick={() => field.onChange("cash")}
+                        className="flex items-center justify-center py-6"
+                      >
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Cash
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "electronic" ? "default" : "outline"}
+                        onClick={() => field.onChange("electronic")}
+                        className="flex items-center justify-center py-6"
+                      >
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Electronic
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Photo Attachment */}
+              <FormField
+                control={form.control}
+                name="photos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>🖼️ Attach Photos</FormLabel>
+                    <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:bg-muted transition-colors">
+                      <Camera className="w-8 h-8 mx-auto text-muted-foreground" />
+                      <p className="mt-2 text-sm text-muted-foreground">Click to upload photos</p>
+                      <p className="text-xs text-muted-foreground">For hard-to-describe locations</p>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="bg-muted/30 p-4 rounded-lg text-sm text-muted-foreground">
                 <p>Estimated Price: <span className="font-bold text-foreground">$15.00 - $20.00</span></p>
                 <p className="text-xs mt-1">Final price confirmed when driver accepts.</p>
               </div>
 
-              <Button type="submit" size="lg" className="w-full" disabled={createOrder.isPending}>
-                {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "Confirm Booking"}
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="flex-1"
+                  disabled={createOrder.isPending}
+                  onClick={() => form.setValue('orderType', 'quote')}
+                >
+                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "💰 Get Price Quotes"}
+                </Button>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="flex-1"
+                  variant="secondary"
+                  disabled={createOrder.isPending}
+                  onClick={() => form.setValue('orderType', 'direct')}
+                >
+                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "✅ Book Now"}
+                </Button>
+              </div>
             </form>
           </Form>
         </CardContent>

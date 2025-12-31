@@ -13,11 +13,19 @@ import { Loader2 } from "lucide-react";
 import CustomerHome from "@/pages/customer-home";
 import BookService from "@/pages/book-service";
 import CustomerOrders from "@/pages/customer-orders";
+import CustomerOrderDetails from "@/pages/customer-order-details";
 import CustomerProfile from "@/pages/customer-profile";
 import CustomerSubcategories from "@/pages/customer-subcategories";
 import CustomerProducts from "@/pages/customer-products";
+import CustomerHelp from "@/pages/customer-help";
+import ProductDetails from "@/pages/product-details";
+import OffersPage from "@/pages/offers";
+import PaymentPage from "@/pages/payment";
+import SpecialCasesPage from "@/pages/special-cases";
+import ChatPage from "@/pages/chat";
 import OrderTracking from "@/pages/order-tracking";
 import RateService from "@/pages/rate-service";
+import BookProduct from "@/pages/book-product";
 
 // Driver Pages
 import DriverDashboard from "@/pages/driver-dashboard";
@@ -41,6 +49,7 @@ import AdminHelp from "@/pages/admin-help";
 import AdminSeo from "@/pages/admin-seo";
 import AdminStoreCategory from "@/pages/admin-store-category";
 import AdminProducts from "@/pages/admin-products";
+import AdminProductDetails from "@/pages/admin-product-details";
 import AdminServiceCategory from "@/pages/admin-service-category";
 import AdminStoreDetails from "@/pages/admin-store-details";
 import UserWelcome from "@/pages/user-welcome";
@@ -106,11 +115,32 @@ function Router() {
       <Route path="/customer/products/:categoryId/:subcategoryId?">
          <ProtectedRoute component={CustomerProducts} allowedRoles={['customer']} />
       </Route>
+      <Route path="/customer/products/:categoryId/:subcategoryId?/:productId">
+         <ProtectedRoute component={ProductDetails} allowedRoles={['customer']} />
+      </Route>
       <Route path="/customer/book/:serviceId?">
          <ProtectedRoute component={BookService} allowedRoles={['customer']} />
       </Route>
+      <Route path="/customer/book-product/:productId?">
+         <ProtectedRoute component={BookProduct} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/offers">
+         <ProtectedRoute component={OffersPage} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/payment">
+         <ProtectedRoute component={PaymentPage} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/special-cases">
+         <ProtectedRoute component={SpecialCasesPage} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/chat/:orderId?">
+         <ProtectedRoute component={ChatPage} allowedRoles={['customer']} />
+      </Route>
       <Route path="/customer/orders">
          <ProtectedRoute component={CustomerOrders} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/orders/:id">
+         <ProtectedRoute component={CustomerOrderDetails} allowedRoles={['customer']} />
       </Route>
       <Route path="/customer/orders/:id/tracking">
          <ProtectedRoute component={OrderTracking} allowedRoles={['customer']} />
@@ -120,6 +150,9 @@ function Router() {
       </Route>
       <Route path="/customer/profile">
          <ProtectedRoute component={CustomerProfile} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/help">
+         <ProtectedRoute component={CustomerHelp} allowedRoles={['customer']} />
       </Route>
 
       {/* Driver Routes */}
@@ -179,6 +212,9 @@ function Router() {
       </Route>
       <Route path="/admin/products">
          <ProtectedRoute component={AdminProducts} allowedRoles={['admin', 'subadmin']} />
+      </Route>
+      <Route path="/admin/products/:productId">
+         <ProtectedRoute component={AdminProductDetails} allowedRoles={['admin', 'subadmin']} />
       </Route>
       <Route path="/admin/service-category">
          <ProtectedRoute component={AdminServiceCategory} allowedRoles={['admin', 'subadmin']} />

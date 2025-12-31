@@ -4,6 +4,8 @@ import { Express } from "express";
 import session from "express-session";
 import { storage } from "./storage";
 import { User, InsertNotification, InsertDriver } from "@shared/schema";
+import { imageStorage } from "./imageStorage";
+import multer from "multer";
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
@@ -145,7 +147,23 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.post("/api/drivers/upload-document", async (req, res) => {
+  // Configure multer for file uploads
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Accept images and PDFs
+      if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files and PDFs are allowed'));
+      }
+    }
+  });
+
+  app.post("/api/drivers/upload-document", upload.single('document'), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
 
     try {
@@ -161,8 +179,7 @@ export function setupAuth(app: Express) {
         return res.status(404).json({ message: "Driver record not found" });
       }
 
-      // In a real implementation, we would handle file upload here
-      // For now, we'll simulate the document upload
+      // Get document type from request body
       const { documentType } = req.body;
 
       // Validate document type
@@ -171,11 +188,30 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Invalid document type" });
       }
 
-      // Create a mock document record (in real implementation, save file to storage)
+      // If file was uploaded, store it in Supabase
+      let documentUrl = null;
+      if (req.file) {
+        const uploadResult = await imageStorage.uploadImage(
+          req.file.buffer,
+          req.file.originalname,
+          'driver-documents' // Using the bucket we'll create
+        );
+
+        if (!uploadResult.success) {
+          return res.status(500).json({ message: `Failed to upload document: ${uploadResult.error}` });
+        }
+
+        documentUrl = uploadResult.url;
+      } else {
+        // If no file was uploaded but we expected one
+        return res.status(400).json({ message: "No document file provided" });
+      }
+
+      // Create document record in database
       const newDocument = await storage.createDriverDocument({
         driverId: driver.id,
         documentType,
-        documentUrl: `/uploads/documents/${Date.now()}_${documentType}.pdf`, // Mock URL
+        documentUrl: documentUrl || '',
         verified: false,
       });
 

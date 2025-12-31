@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/status-badge";
 
 export default function OrderTracking() {
   const [match, params] = useRoute("/customer/orders/:id/tracking");
-  const { data: order, isLoading } = useOrder(params?.id);
+  const { data: order, isLoading } = useOrder(params?.id || "");
 
   if (isLoading) {
     return (

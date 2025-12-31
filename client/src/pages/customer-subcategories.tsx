@@ -1,5 +1,5 @@
 import { useRoute, useLocation } from "wouter";
-import { useSubcategories } from "@/hooks/use-subcategories";
+import { useSubcategoriesByCategory } from "@/hooks/use-subcategories";
 import { useServiceCategories } from "@/hooks/use-services";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Link } from "wouter";
 export default function CustomerSubcategories() {
   const [location, setLocation] = useLocation();
   const [match, params] = useRoute("/customer/services/:categoryId/subcategories");
-  const { data: subcategories, isLoading: subcategoriesLoading } = useSubcategories(params?.categoryId);
+  const { data: subcategories, isLoading: subcategoriesLoading } = useSubcategoriesByCategory(params?.categoryId || "");
   const { data: categories } = useServiceCategories();
   
   const currentCategory = categories?.find(cat => cat.id === params?.categoryId);

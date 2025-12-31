@@ -25,8 +25,6 @@ const personalInfoSchema = z.object({
 
 const vehicleInfoSchema = z.object({
   vehicleType: z.string().min(1, "Vehicle type is required"),
-  vehicleName: z.string().min(1, "Vehicle name is required"),
-  vehicleCapacity: z.string().min(1, "Vehicle capacity is required"),
   vehicleImage: z.string().optional(),
   baseFare: z.string().min(1, "Base fare is required"),
   pricePerKm: z.string().min(1, "Price per kilometer is required"),
@@ -70,8 +68,6 @@ export default function DriverRegisterPage() {
     resolver: zodResolver(vehicleInfoSchema),
     defaultValues: {
       vehicleType: "",
-      vehicleName: "",
-      vehicleCapacity: "",
       vehicleImage: "",
       baseFare: "",
       pricePerKm: "",
@@ -106,6 +102,7 @@ export default function DriverRegisterPage() {
     },
   });
 
+
   if (user) {
     if (user.role === "admin" || user.role === "subadmin") return <Redirect to="/admin" />;
     if (user.role === "driver") return <Redirect to="/driver" />;
@@ -130,9 +127,10 @@ export default function DriverRegisterPage() {
 
   const onSubmitDocuments = async (data: any) => {
     // Combine all form data for registration
+    const { vehicleCapacity, vehicleName, ...vehicleData } = vehicleInfoForm.getValues();
     const registrationData = {
       ...personalInfoForm.getValues(),
-      ...vehicleInfoForm.getValues(),
+      ...vehicleData,
       ...serviceInfoForm.getValues(),
       ...zoneInfoForm.getValues(),
       role: "driver",
@@ -339,30 +337,6 @@ export default function DriverRegisterPage() {
 
                 <FormField
                   control={vehicleInfoForm.control}
-                  name="vehicleName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Name</FormLabel>
-                      <FormControl><Input placeholder="e.g., My Delivery Truck" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
-                  name="vehicleCapacity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle Capacity</FormLabel>
-                      <FormControl><Input placeholder="e.g., 5000L, 10 tons" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={vehicleInfoForm.control}
                   name="baseFare"
                   render={({ field }) => (
                     <FormItem>
@@ -436,6 +410,7 @@ export default function DriverRegisterPage() {
           </div>
         );
 
+
       case 3:
         return (
           <div className="space-y-6">
@@ -508,6 +483,7 @@ export default function DriverRegisterPage() {
             </Form>
           </div>
         );
+
 
       case 4:
         const { data: zones, isLoading: zonesLoading, error: zonesError } = useZones();

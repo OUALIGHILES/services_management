@@ -1,10 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl } from "@shared/routes";
-import { Rating, InsertRating } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
+// Define Rating type locally since it's not properly exported from schema
+interface Rating {
+  id: string;
+  orderId: string;
+  raterId: string;
+  ratedId: string;
+  rating: number;
+  feedback: string;
+  createdAt: Date | null;
+}
+
+interface InsertRating {
+  orderId: string;
+  raterId: string;
+  ratedId: string;
+  rating: number;
+  feedback: string;
+}
+
 export function useRatings(filters?: { orderId?: string; raterId?: string; ratedId?: string }) {
-  const queryKey = [api.ratings?.list?.path || '/api/ratings', filters];
+  const queryKey = ['/api/ratings', filters];
   return useQuery({
     queryKey,
     queryFn: async () => {
@@ -13,10 +30,10 @@ export function useRatings(filters?: { orderId?: string; raterId?: string; rated
       if (filters?.orderId) params.append('orderId', filters.orderId);
       if (filters?.raterId) params.append('raterId', filters.raterId);
       if (filters?.ratedId) params.append('ratedId', filters.ratedId);
-      
+
       const queryString = params.toString();
       const url = `/api/ratings${queryString ? `?${queryString}` : ''}`;
-      
+
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch ratings");
       return res.json() as Promise<Rating[]>;

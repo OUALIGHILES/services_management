@@ -1,4 +1,5 @@
 import { useRatings } from "@/hooks/use-ratings";
+import { useUsers } from "@/hooks/use-users";
 import {
   Table,
   TableBody,
@@ -10,7 +11,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Star, Eye, MessageCircle, Filter, Search, Edit, Trash2, User, Truck } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Rating } from "@shared/schema";
 import {
   Dialog,
@@ -21,7 +22,8 @@ import {
 } from "@/components/ui/dialog";
 
 export default function AdminRatings() {
-  const { data: ratings, isLoading } = useRatings();
+  const { data: ratings, isLoading, refetch } = useRatings();
+  const { data: users } = useUsers();
   const [filters, setFilters] = useState({
     minRating: 0,
     maxRating: 5,
@@ -48,11 +50,41 @@ export default function AdminRatings() {
   };
 
   // Handle delete action
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this rating?")) {
-      // In a real app, this would call an API to delete the rating
-      console.log("Deleting rating:", id);
+      try {
+        const response = await fetch(`/api/ratings/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+
+        if (response.ok) {
+          refetch(); // Refresh the ratings list
+        } else {
+          throw new Error("Failed to delete rating");
+        }
+      } catch (error) {
+        console.error("Error deleting rating:", error);
+        alert("Failed to delete rating. Please try again.");
+      }
     }
+  };
+
+  // Get user by ID
+  const getUserById = (id: string) => {
+    return users?.find(user => user.id === id);
+  };
+
+  // Get customer name
+  const getCustomerName = (userId: string) => {
+    const user = getUserById(userId);
+    return user ? user.fullName : `Customer ${userId.slice(0, 8)}`;
+  };
+
+  // Get driver name
+  const getDriverName = (userId: string) => {
+    const user = getUserById(userId);
+    return user ? user.fullName : `Driver ${userId.slice(0, 8)}`;
   };
 
   return (
@@ -126,13 +158,13 @@ export default function AdminRatings() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-muted-foreground" />
-                      <span>Customer {rating.raterId.slice(0, 8)}</span>
+                      <span>{getCustomerName(rating.raterId)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Truck className="w-4 h-4 text-muted-foreground" />
-                      <span>Driver {rating.ratedId.slice(0, 8)}</span>
+                      <span>{getDriverName(rating.ratedId)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -188,7 +220,7 @@ export default function AdminRatings() {
                   <User className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Customer {editingRating.raterId.slice(0, 8)}</h3>
+                  <h3 className="font-semibold">{getCustomerName(editingRating.raterId)}</h3>
                   <p className="text-sm text-muted-foreground">Feedback ID: {editingRating.id.slice(0, 8)}</p>
                 </div>
               </div>
@@ -196,7 +228,7 @@ export default function AdminRatings() {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Driver:</span>
-                  <span>Driver {editingRating.ratedId.slice(0, 8)}</span>
+                  <span>{getDriverName(editingRating.ratedId)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Rating:</span>
