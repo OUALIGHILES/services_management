@@ -1,19 +1,27 @@
 {
   "version": 2,
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/server"
-    },
-    {
-      "source": "/:path*",
-      "destination": "/api/server"
+      "src": "package.json",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["dist/**", "client/**", "server/**", "shared/**", "script/**", "scripts/**"],
+        "excludeFiles": ["node_modules/**", ".git/**"]
+      }
     }
   ],
-  "functions": {
-    "api/server.js": {
-      "maxDuration": 30,
-      "memory": 1024
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      },
+      "dest": "/dist/public/index.html"
     }
-  }
+  ],
+  "outputDirectory": "dist/public"
 }
