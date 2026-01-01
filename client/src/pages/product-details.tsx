@@ -16,6 +16,10 @@ export default function ProductDetails() {
   const params = match1 ? params1 : params2;
   const productId = params?.productId || '';
 
+  console.log('ProductDetails params:', params);
+  console.log('Product ID being fetched:', productId);
+  console.log('Route matches - match1:', match1, 'match2:', match2);
+
   const { data: product, isLoading } = useProduct(productId);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
