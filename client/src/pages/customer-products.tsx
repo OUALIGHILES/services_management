@@ -267,7 +267,6 @@ export default function CustomerProducts() {
                   const productUrl = params.subcategoryId
                     ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
                     : `/customer/products/${params.categoryId}/${product.id}`;
-                  console.log('Product card clicked, URL:', productUrl, 'params:', params, 'product:', product);
                   setLocation(productUrl);
                 }}
               >
