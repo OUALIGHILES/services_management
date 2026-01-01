@@ -40,13 +40,32 @@ export default function ProductDetails() {
     );
   }
 
-  if (!product) {
+  if (!product && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Package className="w-16 h-16 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Product Not Found</h2>
-        <p className="text-muted-foreground mb-4">The product you're looking for doesn't exist or is no longer available.</p>
-        <Button onClick={() => window.history.back()}>Go Back</Button>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="bg-gradient-to-br from-purple-100 to-indigo-100 w-24 h-24 rounded-full flex items-center justify-center mb-6">
+            <Package className="w-12 h-12 text-purple-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-purple-900 mb-2">Product Not Found</h2>
+          <p className="text-lg text-muted-foreground mb-6 max-w-md">
+            The product you're looking for doesn't exist or is no longer available.
+          </p>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => window.history.back()}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+            >
+              Go Back
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.location.hash = '#/customer/products'}
+            >
+              Browse Products
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
