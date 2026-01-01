@@ -270,8 +270,18 @@ export default function CustomerProducts() {
               >
                 <div className={`${
                   viewMode === 'list' ? "flex-shrink-0 w-24 h-24" : "h-48"
-                } rounded-t-2xl rounded-b-2xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center`}>
-                  <Package className="w-12 h-12 text-purple-600" />
+                } rounded-t-2xl rounded-b-2xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center relative overflow-hidden`}>
+                  {product.images && product.images.length > 0 ? (
+                    <img
+                      src={product.images[0]}
+                      alt={typeof product.name === 'object' ? product.name.en || product.name.ar || product.name.ur : product.name}
+                      className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                        viewMode === 'list' ? "rounded-l-2xl" : "rounded-t-2xl"
+                      }`}
+                    />
+                  ) : (
+                    <Package className="w-12 h-12 text-purple-600" />
+                  )}
                 </div>
 
                 <CardContent className={`p-6 ${
