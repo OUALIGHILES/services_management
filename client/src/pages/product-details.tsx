@@ -3,15 +3,24 @@ import { useProduct } from "@/hooks/use-products";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Package, ShoppingCart, Heart, Share2, Camera, CreditCard } from "lucide-react";
+import { Star, MapPin, Package, ShoppingCart, Heart, Share2, Camera, CreditCard, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
 export default function ProductDetails() {
-  const [match, params] = useRoute("/customer/products/:categoryId/:subcategoryId?/:productId");
-  const { data: product, isLoading } = useProduct(params?.productId || '');
+  const [match1, params1] = useRoute("/customer/products/:categoryId/:productId");
+  const [match2, params2] = useRoute("/customer/products/:categoryId/:subcategoryId/:productId");
+
+  // Determine which route matched and extract parameters accordingly
+  const params = match1 ? params1 : params2;
+  const productId = params?.productId || '';
+
+  const { data: product, isLoading } = useProduct(productId);
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   if (isLoading) {
     return (
@@ -47,39 +56,75 @@ export default function ProductDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Product Images */}
         <div className="space-y-4">
-          <div className="bg-muted rounded-2xl aspect-square flex items-center justify-center overflow-hidden">
-            {product.images && product.images.length > 0 ? (
-              <img
-                src={product.images[selectedImage] || product.images[0]}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="bg-gradient-to-br from-purple-100 to-indigo-100 w-full h-full flex items-center justify-center">
-                <Package className="w-24 h-24 text-purple-600" />
+          {/* Main Image Carousel */}
+          <div className="relative group">
+            <Carousel
+              opts={{
+                align: "start",
+                loop: true
+              }}
+              className="w-full"
+              setApi={(api) => {
+                api.on("select", () => {
+                  setSelectedImage(api.selectedScrollSnap());
+                });
+              }}
+            >
+              <CarouselContent>
+                {product.images && product.images.length > 0 ? (
+                  product.images.map((image, index) => (
+                    <CarouselItem key={index} className="relative">
+                      <div
+                        className="bg-muted rounded-2xl aspect-square flex items-center justify-center overflow-hidden cursor-pointer"
+                        onClick={() => {
+                          setLightboxOpen(true);
+                          setLightboxIndex(index);
+                        }}
+                      >
+                        <img
+                          src={image}
+                          alt={`${product.name} - Image ${index + 1}`}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <div className="bg-white/80 backdrop-blur-sm rounded-full p-3">
+                            <Package className="w-6 h-6 text-purple-600" />
+                          </div>
+                        </div>
+                      </div>
+                    </CarouselItem>
+                  ))
+                ) : (
+                  <CarouselItem>
+                    <div className="bg-gradient-to-br from-purple-100 to-indigo-100 w-full h-full flex items-center justify-center rounded-2xl">
+                      <Package className="w-24 h-24 text-purple-600" />
+                    </div>
+                  </CarouselItem>
+                )}
+              </CarouselContent>
+              <CarouselPrevious className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm hover:bg-white text-purple-600 border border-purple-200 shadow-lg" />
+              <CarouselNext className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 backdrop-blur-sm hover:bg-white text-purple-600 border border-purple-200 shadow-lg" />
+            </Carousel>
+
+            {/* Thumbnail Indicators */}
+            {product.images && product.images.length > 1 && (
+              <div className="flex justify-center mt-4 space-x-2">
+                {product.images.map((_, index) => (
+                  <button
+                    key={index}
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      selectedImage === index
+                        ? "bg-purple-600 w-6"
+                        : "bg-muted-foreground/50 hover:bg-muted-foreground"
+                    }`}
+                    onClick={() => {
+                      setSelectedImage(index);
+                    }}
+                  />
+                ))}
               </div>
             )}
           </div>
-
-          {product.images && product.images.length > 1 && (
-            <div className="grid grid-cols-4 gap-3">
-              {product.images.map((image, index) => (
-                <button
-                  key={index}
-                  className={`rounded-xl aspect-square flex items-center justify-center overflow-hidden ${
-                    selectedImage === index ? "ring-2 ring-primary" : ""
-                  }`}
-                  onClick={() => setSelectedImage(index)}
-                >
-                  <img
-                    src={image}
-                    alt={`Product ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Product Info */}
@@ -246,6 +291,73 @@ export default function ProductDetails() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxOpen && product.images && product.images.length > 0 && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div
+            className="relative max-w-6xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-4 right-4 z-10 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="relative w-full h-[80vh] flex items-center justify-center">
+              <img
+                src={product.images[lightboxIndex]}
+                alt={`${product.name} - Image ${lightboxIndex + 1}`}
+                className="max-h-full max-w-full object-contain"
+              />
+
+              {product.images.length > 1 && (
+                <>
+                  <button
+                    className="absolute left-4 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxIndex((prev) => (prev === 0 ? product.images.length - 1 : prev - 1));
+                    }}
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+
+                  <button
+                    className="absolute right-4 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLightboxIndex((prev) => (prev === product.images.length - 1 ? 0 : prev + 1));
+                    }}
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                    {product.images.map((_, index) => (
+                      <button
+                        key={index}
+                        className={`w-3 h-3 rounded-full ${
+                          lightboxIndex === index ? "bg-white" : "bg-white/50"
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxIndex(index);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

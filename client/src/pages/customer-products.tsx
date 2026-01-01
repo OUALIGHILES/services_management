@@ -260,8 +260,10 @@ export default function CustomerProducts() {
               <Card
                 className="overflow-hidden border-2 hover:border-purple-300 transition-all duration-300 bg-gradient-to-br from-white to-purple-50/30 shadow-lg hover:shadow-2xl cursor-pointer group"
                 onClick={() => {
-                  const productUrl = params.subcategoryId
-                    ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
+                  // Use the product's actual subcategory if available, otherwise use the current params
+                  const productSubcategoryId = product.subcategoryId || params.subcategoryId;
+                  const productUrl = productSubcategoryId
+                    ? `/customer/products/${params.categoryId}/${productSubcategoryId}/${product.id}`
                     : `/customer/products/${params.categoryId}/${product.id}`;
                   setLocation(productUrl);
                 }}
@@ -303,8 +305,10 @@ export default function CustomerProducts() {
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl hover:scale-105 transition-all"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent the card click event from firing
-                          const productUrl = params.subcategoryId
-                            ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
+                          // Use the product's actual subcategory if available, otherwise use the current params
+                          const productSubcategoryId = product.subcategoryId || params.subcategoryId;
+                          const productUrl = productSubcategoryId
+                            ? `/customer/products/${params.categoryId}/${productSubcategoryId}/${product.id}`
                             : `/customer/products/${params.categoryId}/${product.id}`;
                           setLocation(productUrl);
                         }}
