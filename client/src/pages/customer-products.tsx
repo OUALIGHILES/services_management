@@ -9,6 +9,7 @@ import { ArrowLeft, Package, Truck, ShoppingBag, MapPin, ArrowRight, Grid, List,
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { filterProductsBySubcategory } from "@/utils/product-utils";
+import AutoScrollImageCarousel from "@/components/ui/auto-scroll-image-carousel";
 
 export default function CustomerProducts() {
   const [location, setLocation] = useLocation();
@@ -260,11 +261,13 @@ export default function CustomerProducts() {
               <Card
                 className="overflow-hidden border-2 hover:border-purple-300 transition-all duration-300 bg-gradient-to-br from-white to-purple-50/30 shadow-lg hover:shadow-2xl cursor-pointer group"
                 onClick={() => {
-                  // Use the product's actual subcategory if available, otherwise use the current params
-                  const productSubcategoryId = product.subcategoryId || params.subcategoryId;
-                  const productUrl = productSubcategoryId
-                    ? `/customer/products/${params.categoryId}/${productSubcategoryId}/${product.id}`
+                  // Use the current params to determine the URL structure
+                  // If we're in a specific subcategory view, include it in the URL
+                  // If we're in the "All Products" view (no subcategory selected), don't include it
+                  const productUrl = params.subcategoryId
+                    ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
                     : `/customer/products/${params.categoryId}/${product.id}`;
+                  console.log('Product card clicked, URL:', productUrl, 'params:', params, 'product:', product);
                   setLocation(productUrl);
                 }}
               >
@@ -272,12 +275,15 @@ export default function CustomerProducts() {
                   viewMode === 'list' ? "flex-shrink-0 w-24 h-24" : "h-48"
                 } rounded-t-2xl rounded-b-2xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center relative overflow-hidden`}>
                   {product.images && product.images.length > 0 ? (
-                    <img
-                      src={product.images[0]}
-                      alt={typeof product.name === 'object' ? product.name.en || product.name.ar || product.name.ur : product.name}
-                      className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                    <AutoScrollImageCarousel
+                      images={product.images}
+                      altText={typeof product.name === 'object' ? product.name.en || product.name.ar || product.name.ur : product.name}
+                      className={`w-full h-full ${
                         viewMode === 'list' ? "rounded-l-2xl" : "rounded-t-2xl"
                       }`}
+                      autoScrollInterval={4000}
+                      showIndicators={false}
+                      showNavigation={false}
                     />
                   ) : (
                     <Package className="w-12 h-12 text-purple-600" />
@@ -315,11 +321,13 @@ export default function CustomerProducts() {
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl hover:scale-105 transition-all"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent the card click event from firing
-                          // Use the product's actual subcategory if available, otherwise use the current params
-                          const productSubcategoryId = product.subcategoryId || params.subcategoryId;
-                          const productUrl = productSubcategoryId
-                            ? `/customer/products/${params.categoryId}/${productSubcategoryId}/${product.id}`
+                          // Use the current params to determine the URL structure
+                          // If we're in a specific subcategory view, include it in the URL
+                          // If we're in the "All Products" view (no subcategory selected), don't include it
+                          const productUrl = params.subcategoryId
+                            ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
                             : `/customer/products/${params.categoryId}/${product.id}`;
+                          console.log('View Details button clicked, URL:', productUrl, 'params:', params, 'product:', product);
                           setLocation(productUrl);
                         }}
                       >

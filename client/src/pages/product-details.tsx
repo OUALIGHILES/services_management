@@ -9,16 +9,28 @@ import { motion } from "framer-motion";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
 export default function ProductDetails() {
-  const [match1, params1] = useRoute("/customer/products/:categoryId/:productId");
-  const [match2, params2] = useRoute("/customer/products/:categoryId/:subcategoryId/:productId");
+  const [matchWithSubcategory, paramsWithSubcategory] = useRoute("/customer/products/:categoryId/:subcategoryId/:productId");
+  const [matchWithoutSubcategory, paramsWithoutSubcategory] = useRoute("/customer/products/:categoryId/:productId");
 
   // Determine which route matched and extract parameters accordingly
-  const params = match1 ? params1 : params2;
-  const productId = params?.productId || '';
+  let params, productId;
+  if (matchWithSubcategory) {
+    params = paramsWithSubcategory;
+    productId = params.productId || '';
+    console.log('Matched route with subcategory:', params);
+  } else if (matchWithoutSubcategory) {
+    params = paramsWithoutSubcategory;
+    productId = params.productId || '';
+    console.log('Matched route without subcategory:', params);
+  } else {
+    params = null;
+    productId = '';
+    console.log('No route matched');
+  }
 
   console.log('ProductDetails params:', params);
   console.log('Product ID being fetched:', productId);
-  console.log('Route matches - match1:', match1, 'match2:', match2);
+  console.log('Route matches - withSubcategory:', matchWithSubcategory, 'withoutSubcategory:', matchWithoutSubcategory);
 
   const { data: product, isLoading } = useProduct(productId);
   const [selectedImage, setSelectedImage] = useState(0);
