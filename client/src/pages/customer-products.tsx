@@ -261,9 +261,6 @@ export default function CustomerProducts() {
               <Card
                 className="overflow-hidden border-2 hover:border-purple-300 transition-all duration-300 bg-gradient-to-br from-white to-purple-50/30 shadow-lg hover:shadow-2xl cursor-pointer group"
                 onClick={() => {
-                  // Use the current params to determine the URL structure
-                  // If we're in a specific subcategory view, include it in the URL
-                  // If we're in the "All Products" view (no subcategory selected), don't include it
                   const productUrl = params.subcategoryId
                     ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
                     : `/customer/products/${params.categoryId}/${product.id}`;
@@ -320,9 +317,6 @@ export default function CustomerProducts() {
                         className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg hover:shadow-xl hover:scale-105 transition-all"
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent the card click event from firing
-                          // Use the current params to determine the URL structure
-                          // If we're in a specific subcategory view, include it in the URL
-                          // If we're in the "All Products" view (no subcategory selected), don't include it
                           const productUrl = params.subcategoryId
                             ? `/customer/products/${params.categoryId}/${params.subcategoryId}/${product.id}`
                             : `/customer/products/${params.categoryId}/${product.id}`;

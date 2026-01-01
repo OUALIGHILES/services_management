@@ -248,6 +248,35 @@ export const homeBanners = pgTable("home_banners", {
   modifiedAt: timestamp("modified_at").defaultNow(),
 });
 
+export const helpTickets = pgTable("help_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subject: text("subject").notNull(),
+  category: text("category").notNull(),
+  priority: text("priority", { enum: ["low", "medium", "high"] }).default("medium").notNull(),
+  status: text("status", { enum: ["open", "in-progress", "resolved"] }).default("open").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  description: text("description").notNull(),
+  assignedTo: uuid("assigned_to").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const helpArticles = pgTable("help_articles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(),
+  views: integer("views").default(0),
+  status: text("status", { enum: ["draft", "published", "archived"] }).default("draft").notNull(),
+  authorId: uuid("author_id").references(() => users.id).notNull(),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 
 // === RELATIONS ===
 
@@ -258,6 +287,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   orders: many(orders, { relationName: "customerOrders" }),
   subAdminPermissions: many(subAdminPermissions),
+  helpTickets: many(helpTickets),
+  helpArticles: many(helpArticles),
 }));
 
 export const permissionsRelations = relations(permissions, ({ many }) => ({
@@ -358,6 +389,20 @@ export const impersonationLogsRelations = relations(impersonationLogs, ({ one })
   }),
 }));
 
+export const helpTicketsRelations = relations(helpTickets, ({ one }) => ({
+  assignedTo: one(users, {
+    fields: [helpTickets.assignedTo],
+    references: [users.id],
+  }),
+}));
+
+export const helpArticlesRelations = relations(helpArticles, ({ one }) => ({
+  author: one(users, {
+    fields: [helpArticles.authorId],
+    references: [users.id],
+  }),
+}));
+
 
 // === INSERT SCHEMAS ===
 
@@ -391,6 +436,8 @@ export const insertHomeBannerSchema = createInsertSchema(homeBanners, {
 export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, createdAt: true, modifiedAt: true });
 
 export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });
+export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHelpArticleSchema = createInsertSchema(helpArticles).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
@@ -433,4 +480,8 @@ export type Store = typeof stores.$inferSelect;
 export type InsertStore = z.infer<typeof insertStoreSchema>;
 export type ImpersonationLog = typeof impersonationLogs.$inferSelect;
 export type InsertImpersonationLog = z.infer<typeof insertImpersonationLogSchema>;
+export type HelpTicket = typeof helpTickets.$inferSelect;
+export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
+export type HelpArticle = typeof helpArticles.$inferSelect;
+export type InsertHelpArticle = z.infer<typeof insertHelpArticleSchema>;
 

@@ -2,7 +2,7 @@ import { getDb } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
-  permissions, subAdminPermissions, impersonationLogs,
+  permissions, subAdminPermissions, impersonationLogs, helpTickets, helpArticles,
   type User, type InsertUser, type Driver, type InsertDriver,
   type Vehicle, type InsertVehicle, type Zone, type InsertZone,
   type ServiceCategory, type InsertServiceCategory, type Subcategory, type InsertSubcategory, type Service, type InsertService,
@@ -14,7 +14,9 @@ import {
   type Store, type InsertStore,
   type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission,
   type ImpersonationLog, type InsertImpersonationLog,
-  type Rating, type InsertRating
+  type Rating, type InsertRating,
+  type HelpTicket, type InsertHelpTicket,
+  type HelpArticle, type InsertHelpArticle
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -132,6 +134,17 @@ export interface IStorage {
   // Impersonation Logs
   createImpersonationLog(log: InsertImpersonationLog): Promise<ImpersonationLog>;
   getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]>;
+
+  // Help Center
+  getHelpTicket(id: string): Promise<HelpTicket | undefined>;
+  getAllHelpTickets(): Promise<HelpTicket[]>;
+  createHelpTicket(ticket: InsertHelpTicket): Promise<HelpTicket>;
+  updateHelpTicket(id: string, updates: Partial<InsertHelpTicket>): Promise<HelpTicket | undefined>;
+  getHelpArticle(id: string): Promise<HelpArticle | undefined>;
+  getAllHelpArticles(): Promise<HelpArticle[]>;
+  createHelpArticle(article: InsertHelpArticle): Promise<HelpArticle>;
+  updateHelpArticle(id: string, updates: Partial<InsertHelpArticle>): Promise<HelpArticle | undefined>;
+  publishHelpArticle(id: string): Promise<HelpArticle | undefined>;
 }
 
 // Utility function to normalize language objects to ensure consistent structure

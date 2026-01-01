@@ -5,8 +5,9 @@ import {
   insertOrderSchema, insertOrderOfferSchema, insertTransactionSchema,
   insertNotificationSchema, insertMessageSchema, insertRatingSchema,
   insertAdminSettingSchema, insertProductSchema, insertHomeBannerSchema, insertStoreSchema,
+  insertHelpTicketSchema, insertHelpArticleSchema,
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
-  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores
+  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, helpTickets, helpArticles
 } from './schema';
 
 // Create a custom schema for subcategory creation that excludes categoryId since it comes from URL parameter
@@ -464,6 +465,62 @@ export const api = {
     },
   },
   impersonation, // Add impersonation to the main api object
+},
+  help: {
+    tickets: {
+      list: {
+        method: 'GET' as const,
+        path: '/api/help/tickets',
+        responses: { 200: z.array(z.custom<typeof helpTickets.$inferSelect>()) },
+      },
+      get: {
+        method: 'GET' as const,
+        path: '/api/help/tickets/:id',
+        responses: { 200: z.custom<typeof helpTickets.$inferSelect>() },
+      },
+      create: {
+        method: 'POST' as const,
+        path: '/api/help/tickets',
+        input: insertHelpTicketSchema,
+        responses: { 201: z.custom<typeof helpTickets.$inferSelect>() },
+      },
+      update: {
+        method: 'PATCH' as const,
+        path: '/api/help/tickets/:id',
+        input: insertHelpTicketSchema.partial(),
+        responses: { 200: z.custom<typeof helpTickets.$inferSelect>() },
+      },
+    },
+    articles: {
+      list: {
+        method: 'GET' as const,
+        path: '/api/help/articles',
+        responses: { 200: z.array(z.custom<typeof helpArticles.$inferSelect>()) },
+      },
+      get: {
+        method: 'GET' as const,
+        path: '/api/help/articles/:id',
+        responses: { 200: z.custom<typeof helpArticles.$inferSelect>() },
+      },
+      create: {
+        method: 'POST' as const,
+        path: '/api/help/articles',
+        input: insertHelpArticleSchema,
+        responses: { 201: z.custom<typeof helpArticles.$inferSelect>() },
+      },
+      update: {
+        method: 'PATCH' as const,
+        path: '/api/help/articles/:id',
+        input: insertHelpArticleSchema.partial(),
+        responses: { 200: z.custom<typeof helpArticles.$inferSelect>() },
+      },
+      publish: {
+        method: 'PATCH' as const,
+        path: '/api/help/articles/:id/publish',
+        responses: { 200: z.custom<typeof helpArticles.$inferSelect>() },
+      },
+    },
+  },
 };
 
 
