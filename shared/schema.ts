@@ -461,6 +461,11 @@ export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({ id:
 export const insertHelpArticleSchema = createInsertSchema(helpArticles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHelpMessageSchema = createInsertSchema(helpMessages).omit({ id: true, createdAt: true });
 
+// Create select schemas for API responses (include all fields for select operations)
+export const selectHelpTicketSchema = createInsertSchema(helpTickets); // This will include id, createdAt, updatedAt
+export const selectHelpArticleSchema = createInsertSchema(helpArticles); // This will include id, createdAt, updatedAt
+export const selectHelpMessageSchema = createInsertSchema(helpMessages); // This will include id, createdAt
+
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

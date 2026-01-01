@@ -5,8 +5,8 @@
       "src": "server/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**"],
-        "excludeFiles": ["node_modules/**", ".git/**", "client/**", "scripts/**", "script/**"]
+        "includeFiles": ["dist/**", "server/**", "shared/**", "attached_assets/**"],
+        "excludeFiles": ["node_modules/**", ".git/**", "client/**", "scripts/**", "script/**", "*.md", "*.sql", ".env*"]
       }
     }
   ],
