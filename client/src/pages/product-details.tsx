@@ -17,20 +17,13 @@ export default function ProductDetails() {
   if (matchWithSubcategory) {
     params = paramsWithSubcategory;
     productId = params.productId || '';
-    console.log('Matched route with subcategory:', params);
   } else if (matchWithoutSubcategory) {
     params = paramsWithoutSubcategory;
     productId = params.productId || '';
-    console.log('Matched route without subcategory:', params);
   } else {
     params = null;
     productId = '';
-    console.log('No route matched');
   }
-
-  console.log('ProductDetails params:', params);
-  console.log('Product ID being fetched:', productId);
-  console.log('Route matches - withSubcategory:', matchWithSubcategory, 'withoutSubcategory:', matchWithoutSubcategory);
 
   const { data: product, isLoading } = useProduct(productId);
   const [selectedImage, setSelectedImage] = useState(0);
