@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
+import { ImageUpload } from "@/components/image-upload";
 import {
   Plus,
   Edit,
@@ -52,6 +53,7 @@ interface ServiceCategory {
   };
   priority: number;
   customerNotes: string;
+  picture?: string;
   status: 'active' | 'inactive';
   createdAt: string;
   modifiedAt: string;
@@ -85,6 +87,7 @@ const serviceCategorySchema = z.object({
   descriptionUr: z.string().optional(),
   priority: z.number().min(1, "Priority must be at least 1"),
   customerNotes: z.string().optional(),
+  picture: z.string().optional(),
   status: z.enum(['active', 'inactive']),
 });
 
@@ -152,6 +155,7 @@ export default function AdminServiceCategory() {
             description: cat.description || { en: "", ar: "", ur: "" },
             priority: cat.priority || 1,
             customerNotes: cat.customerNotes || "",
+            picture: cat.picture || "",
             status: cat.active ? 'active' : 'inactive',
             createdAt: cat.createdAt || new Date().toISOString(),
             modifiedAt: cat.modifiedAt || new Date().toISOString(),
@@ -198,6 +202,7 @@ export default function AdminServiceCategory() {
       descriptionUr: editingCategory?.description.ur || "",
       priority: editingCategory?.priority || 1,
       customerNotes: editingCategory?.customerNotes || "",
+      picture: editingCategory?.picture || "",
       status: editingCategory?.status || "active",
     },
   });
@@ -237,6 +242,7 @@ export default function AdminServiceCategory() {
               ar: data.descriptionAr || "",
               ur: data.descriptionUr || ""
             },
+            picture: data.picture || null,
             active: data.status === 'active'
           }),
         });
@@ -250,6 +256,7 @@ export default function AdminServiceCategory() {
                   ...cat,
                   name: updatedCategory.name,
                   description: updatedCategory.description || { en: "", ar: "", ur: "" },
+                  picture: updatedCategory.picture || "",
                   status: updatedCategory.active ? 'active' : 'inactive',
                   modifiedAt: updatedCategory.modifiedAt || new Date().toISOString()
                 }
@@ -285,6 +292,7 @@ export default function AdminServiceCategory() {
               ar: data.descriptionAr || "",
               ur: data.descriptionUr || ""
             },
+            picture: data.picture || null,
             active: data.status === 'active'
           }),
         });
@@ -298,6 +306,7 @@ export default function AdminServiceCategory() {
             description: newCategory.description || { en: "", ar: "", ur: "" },
             priority: data.priority,
             customerNotes: data.customerNotes || "",
+            picture: newCategory.picture || "",
             status: newCategory.active ? 'active' : 'inactive',
             createdAt: newCategory.createdAt || new Date().toISOString(),
             modifiedAt: newCategory.modifiedAt || new Date().toISOString(),
@@ -343,6 +352,7 @@ export default function AdminServiceCategory() {
       descriptionUr: category.description.ur,
       priority: category.priority,
       customerNotes: category.customerNotes,
+      picture: category.picture || "",
       status: category.status,
     });
     setIsDialogOpen(true);
@@ -714,6 +724,24 @@ export default function AdminServiceCategory() {
                     )}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="picture"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category Picture</FormLabel>
+                        <FormControl>
+                          <ImageUpload
+                            value={field.value}
+                            onChange={field.onChange}
+                            bucketName="categories"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => {
                       setIsDialogOpen(false);
@@ -922,6 +950,7 @@ export default function AdminServiceCategory() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Picture</TableHead>
                   <TableHead>Category Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Priority</TableHead>
@@ -935,6 +964,17 @@ export default function AdminServiceCategory() {
               <TableBody>
                 {filteredCategories.map((category) => (
                   <TableRow key={category.id}>
+                    <TableCell>
+                      {category.picture ? (
+                        <img
+                          src={category.picture}
+                          alt={category.name.en}
+                          className="w-12 h-12 object-cover rounded-md"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">No image</span>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="space-y-1">
                         <div className="font-medium">{category.name.en}</div>

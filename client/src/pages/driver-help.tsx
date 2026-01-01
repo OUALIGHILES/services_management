@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { HelpCircle, Phone, Mail, MessageCircle, Search, Package, CreditCard, Truck, User, AlertTriangle } from "lucide-react";
+import { HelpCircle, Phone, Mail, MessageCircle, Search, AlertTriangle, FileText, CreditCard, Package } from "lucide-react";
 import { useCreateHelpTicket } from "@/hooks/use-help-center";
-import { useAuth } from "@/hooks/use-auth";
 import { useCreateNotification } from "@/hooks/use-notifications";
+import { useAuth } from "@/hooks/use-auth";
 
-export default function CustomerHelp() {
+export default function DriverHelp() {
   const [activeTab, setActiveTab] = useState<'faq' | 'contact' | 'report'>('faq');
   const [searchQuery, setSearchQuery] = useState('');
   const [ticketForm, setTicketForm] = useState({
@@ -25,24 +25,24 @@ export default function CustomerHelp() {
 
   const faqs = [
     {
-      question: "How do I book a delivery?",
-      answer: "To book a delivery, go to the Services section, select the type of service you need, enter your pickup and dropoff locations, and confirm your booking. You can choose between direct booking or getting quotes from multiple drivers."
+      question: "How do I update my vehicle information?",
+      answer: "Go to your profile section and select 'Vehicle Details' to update your vehicle information including make, model, license plate, and insurance details."
     },
     {
-      question: "Can I track my order?",
-      answer: "Yes, once your order is confirmed, you can track it in real-time from the Tracking section. You'll see the driver's location, estimated arrival time, and order status."
+      question: "What if I have payment issues?",
+      answer: "If you're experiencing payment issues, please contact support immediately. You can also check your payment history in the 'Earnings' section."
     },
     {
-      question: "How do I pay for the service?",
-      answer: "You can pay using cash or electronic payment methods. Select your preferred payment method when booking the service."
+      question: "How do I report an order problem?",
+      answer: "You can report order problems using the 'Report Issue' form in the Contact Support section. Include order number and detailed description of the issue."
     },
     {
-      question: "What if I need to cancel my order?",
-      answer: "You can cancel your order from the Orders section before the driver accepts it. Cancellation policies may apply depending on the timing."
+      question: "What are the working hours?",
+      answer: "You can set your own working hours in your profile. The app will show you available orders based on your preferred working times."
     },
     {
-      question: "How do I rate my driver?",
-      answer: "After your order is completed, you'll receive a notification prompting you to rate your experience. You can also access the rating page from your order history."
+      question: "How do I update my availability?",
+      answer: "You can update your availability status directly from the dashboard - either 'Available' or 'Not Available'."
     }
   ];
 
@@ -58,15 +58,15 @@ export default function CustomerHelp() {
         category: ticketForm.category,
         description: ticketForm.description,
         priority: ticketForm.priority,
-        customerName: user?.name || "Customer",
-        customerEmail: user?.email || "customer@example.com"
+        customerName: user?.name || "Driver",
+        customerEmail: user?.email || "driver@example.com"
       }, {
         onSuccess: (ticket) => {
           // If the ticket is high priority, send a notification to admins
           if (ticket.priority === 'high') {
             createNotificationMutation.mutate({
               title: "Urgent Help Request",
-              message: `A high priority help ticket has been created: ${ticket.subject}`,
+              message: `A high priority help ticket has been created by a driver: ${ticket.subject}`,
               type: "urgent",
               userId: "admin", // This should be the admin user ID in a real implementation
               read: false
@@ -88,7 +88,7 @@ export default function CustomerHelp() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">Help Center</h1>
+        <h1 className="text-3xl font-bold mb-2">Driver Help Center</h1>
         <p className="text-muted-foreground">Find answers to your questions or contact support</p>
       </div>
 
@@ -128,7 +128,7 @@ export default function CustomerHelp() {
           className="rounded-none border-b-2 -mb-px"
           onClick={() => setActiveTab('report')}
         >
-          <Package className="w-4 h-4 mr-2" />
+          <AlertTriangle className="w-4 h-4 mr-2" />
           Report Issue
         </Button>
       </div>
@@ -167,7 +167,7 @@ export default function CustomerHelp() {
                 <Button variant="outline" className="flex flex-col items-center justify-center p-6 h-32">
                   <Mail className="w-8 h-8 mb-2" />
                   <span>Email Us</span>
-                  <span className="text-sm text-muted-foreground">support@deliveryhub.com</span>
+                  <span className="text-sm text-muted-foreground">driver-support@deliveryhub.com</span>
                 </Button>
                 <Button variant="outline" className="flex flex-col items-center justify-center p-6 h-32">
                   <MessageCircle className="w-8 h-8 mb-2" />
@@ -179,8 +179,8 @@ export default function CustomerHelp() {
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium mb-4">Send us a message</h3>
                 <div className="space-y-4">
-                  <Input placeholder="Your name" defaultValue={user?.name || ""} />
-                  <Input placeholder="Your email" defaultValue={user?.email || ""} />
+                  <Input placeholder="Your name" />
+                  <Input placeholder="Your email" />
                   <Textarea placeholder="How can we help you?" rows={4} />
                   <Button className="w-full">Send Message</Button>
                 </div>
@@ -200,10 +200,10 @@ export default function CustomerHelp() {
                   <label className="text-sm font-medium">Issue Category</label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     {[
-                      { value: 'order', label: 'Orders', icon: Package },
-                      { value: 'payment', label: 'Payments', icon: CreditCard },
-                      { value: 'service', label: 'Service Problems', icon: Truck },
-                      { value: 'general', label: 'General Support', icon: User }
+                      { value: 'payment', label: 'Payment', icon: CreditCard },
+                      { value: 'order', label: 'Order Problem', icon: Package },
+                      { value: 'vehicle', label: 'Vehicle', icon: FileText },
+                      { value: 'general', label: 'General', icon: HelpCircle }
                     ].map((category) => {
                       const IconComponent = category.icon;
                       return (
@@ -220,7 +220,7 @@ export default function CustomerHelp() {
                     })}
                   </div>
                 </div>
-
+                
                 <div>
                   <label className="text-sm font-medium">Priority</label>
                   <div className="grid grid-cols-3 gap-2 mt-2">
@@ -261,8 +261,8 @@ export default function CustomerHelp() {
                 />
               </div>
 
-              <Button
-                className="w-full"
+              <Button 
+                className="w-full" 
                 onClick={handleCreateTicket}
                 disabled={createTicketMutation.isPending || !ticketForm.subject.trim() || !ticketForm.description.trim()}
               >

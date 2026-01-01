@@ -413,7 +413,7 @@ async function handleImageRoutes(req, res, method, url) {
         if (err) {
           return res.status(400).json({ message: err.message });
         }
-        
+
         if (!req.file) {
           return res.status(400).json({ message: "No image file provided" });
         }
@@ -437,6 +437,38 @@ async function handleImageRoutes(req, res, method, url) {
         } catch (error) {
           console.error("Product image upload error:", error);
           res.status(500).json({ message: "Failed to upload product image" });
+        }
+      });
+    } else if (url.includes('/category')) {
+      // Handle category image upload
+      return await upload.single('image')(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({ message: err.message });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ message: "No image file provided" });
+        }
+
+        try {
+          const uploadResult = await imageStorage.uploadImage(
+            req.file.buffer,
+            req.file.originalname,
+            'categories'
+          );
+
+          if (!uploadResult.success) {
+            return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+          }
+
+          res.json({
+            success: true,
+            url: uploadResult.url,
+            fileName: uploadResult.fileName
+          });
+        } catch (error) {
+          console.error("Category image upload error:", error);
+          res.status(500).json({ message: "Failed to upload category image" });
         }
       });
     }
@@ -740,6 +772,47 @@ async function handleHelpCenterRoutes(req, res, method, url) {
               }
               throw err;
             }
+          }
+        default:
+          res.status(405).json({ error: 'Method not allowed' });
+      }
+      break;
+    case 'messages':
+      switch (method) {
+        case 'GET':
+          if (resourceId) {
+            // Get messages for a specific ticket
+            const messages = await storage.getHelpMessagesByTicket(resourceId);
+            return res.json(messages);
+          } else {
+            // Get all messages (admin only)
+            const messages = await storage.getAllHelpMessages();
+            return res.json(messages);
+          }
+        case 'POST':
+          // Create a new message
+          try {
+            const input = api.help.messages.create.input.parse(req.body);
+            const message = await storage.createHelpMessage(input);
+            return res.status(201).json(message);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        case 'PATCH':
+          if (!resourceId) return res.status(400).json({ message: "Message ID is required" });
+          try {
+            const input = api.help.messages.update.input.parse(req.body);
+            const updatedMessage = await storage.updateHelpMessage(resourceId, input);
+            if (!updatedMessage) return res.status(404).json({ message: "Message not found" });
+            return res.json(updatedMessage);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
           }
         default:
           res.status(405).json({ error: 'Method not allowed' });

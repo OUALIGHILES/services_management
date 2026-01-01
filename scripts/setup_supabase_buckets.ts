@@ -48,6 +48,12 @@ async function setupBuckets() {
       options: {
         public: true,
       }
+    },
+    {
+      name: 'categories',
+      options: {
+        public: true,
+      }
     }
   ];
 

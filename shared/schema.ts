@@ -85,6 +85,7 @@ export const serviceCategories = pgTable("service_categories", {
   name: jsonb("name").notNull(), // {en, ar, ur}
   description: jsonb("description"),
   active: boolean("active").default(true),
+  picture: text("picture"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -277,6 +278,15 @@ export const helpArticles = pgTable("help_articles", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const helpMessages = pgTable("help_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticketId: uuid("ticket_id").references(() => helpTickets.id).notNull(),
+  senderId: uuid("sender_id").references(() => users.id).notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 
 // === RELATIONS ===
 
@@ -403,6 +413,17 @@ export const helpArticlesRelations = relations(helpArticles, ({ one }) => ({
   }),
 }));
 
+export const helpMessagesRelations = relations(helpMessages, ({ one }) => ({
+  ticket: one(helpTickets, {
+    fields: [helpMessages.ticketId],
+    references: [helpTickets.id],
+  }),
+  sender: one(users, {
+    fields: [helpMessages.senderId],
+    references: [users.id],
+  }),
+}));
+
 
 // === INSERT SCHEMAS ===
 
@@ -438,6 +459,7 @@ export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, cre
 export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });
 export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHelpArticleSchema = createInsertSchema(helpArticles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHelpMessageSchema = createInsertSchema(helpMessages).omit({ id: true, createdAt: true });
 
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
@@ -484,4 +506,6 @@ export type HelpTicket = typeof helpTickets.$inferSelect;
 export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
 export type HelpArticle = typeof helpArticles.$inferSelect;
 export type InsertHelpArticle = z.infer<typeof insertHelpArticleSchema>;
+export type HelpMessage = typeof helpMessages.$inferSelect;
+export type InsertHelpMessage = z.infer<typeof insertHelpMessageSchema>;
 

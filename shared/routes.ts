@@ -5,9 +5,9 @@ import {
   insertOrderSchema, insertOrderOfferSchema, insertTransactionSchema,
   insertNotificationSchema, insertMessageSchema, insertRatingSchema,
   insertAdminSettingSchema, insertProductSchema, insertHomeBannerSchema, insertStoreSchema,
-  insertHelpTicketSchema, insertHelpArticleSchema,
+  insertHelpTicketSchema, insertHelpArticleSchema, insertHelpMessageSchema,
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
-  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, helpTickets, helpArticles
+  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, helpTickets, helpArticles, helpMessages
 } from './schema';
 
 // Create a custom schema for subcategory creation that excludes categoryId since it comes from URL parameter
@@ -518,6 +518,30 @@ export const api = {
         method: 'PATCH' as const,
         path: '/api/help/articles/:id/publish',
         responses: { 200: z.custom<typeof helpArticles.$inferSelect>() },
+      },
+    },
+    messages: {
+      list: {
+        method: 'GET' as const,
+        path: '/api/help/messages',
+        responses: { 200: z.array(z.custom<HelpMessage>()) },
+      },
+      listByTicket: {
+        method: 'GET' as const,
+        path: '/api/help/tickets/:ticketId/messages',
+        responses: { 200: z.array(z.custom<HelpMessage>()) },
+      },
+      create: {
+        method: 'POST' as const,
+        path: '/api/help/messages',
+        input: insertHelpMessageSchema,
+        responses: { 201: z.custom<HelpMessage>() },
+      },
+      update: {
+        method: 'PATCH' as const,
+        path: '/api/help/messages/:id',
+        input: insertHelpMessageSchema.partial(),
+        responses: { 200: z.custom<HelpMessage>() },
       },
     },
   },
