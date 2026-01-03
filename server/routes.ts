@@ -5,9 +5,66 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { requireAuth, requireRole, isAdmin, isAdminOrSubAdmin, requireImpersonationPermission } from "./middleware/auth";
-import { InsertNotification } from "@shared/schema";
+import { InsertNotification, drivers, transactions } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { imageStorage } from "./imageStorage";
 import multer from "multer";
+import { getDb } from "./db";
+import nodemailer from "nodemailer";
+
+// Create email transporter
+const createEmailTransporter = () => {
+  return nodemailer.createTransporter({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.EMAIL_PORT || "587"),
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
+
+// Function to send email notification to driver
+const sendDriverApprovalEmail = async (userEmail: string, userName: string, status: string) => {
+  try {
+    const transporter = createEmailTransporter();
+
+    let subject, html;
+    if (status === 'approved') {
+      subject = 'Driver Application Approved';
+      html = `
+        <h2>Congratulations, ${userName}!</h2>
+        <p>Your driver application has been approved. You can now log in and start accepting orders.</p>
+        <p>Thank you for joining our delivery service!</p>
+      `;
+    } else if (status === 'offline') {
+      subject = 'Driver Application Status Update';
+      html = `
+        <h2>Application Status Update, ${userName}</h2>
+        <p>We regret to inform you that your driver application has been rejected. Please contact administration for more details.</p>
+      `;
+    } else {
+      subject = 'Driver Status Updated';
+      html = `
+        <h2>Status Update, ${userName}</h2>
+        <p>Your driver status has been updated to ${status}.</p>
+      `;
+    }
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: userEmail,
+      subject: subject,
+      html: html,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email notification sent to ${userEmail}`);
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
+};
 
 export async function registerRoutes(
   httpServer: Server,
@@ -108,6 +165,9 @@ export async function registerRoutes(
           message: notificationMessage,
           type: 'driver_status',
         });
+
+        // Send email notification to the driver
+        await sendDriverApprovalEmail(user.email, user.fullName, req.body.status);
       }
 
       res.json(driver);
@@ -117,7 +177,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post(api.drivers.updateDriverStatus.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+  app.patch(api.drivers.updateStatus.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
     try {
       const { status, serviceCategory, subService } = req.body;
 
@@ -150,6 +210,9 @@ export async function registerRoutes(
           message: notificationMessage,
           type: 'driver_status',
         });
+
+        // Send email notification to the driver
+        await sendDriverApprovalEmail(user.email, user.fullName, req.body.status);
       }
 
       res.json(updatedDriver);
@@ -451,21 +514,6 @@ export async function registerRoutes(
     }
   });
 
-  app.post(api.orders.create.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    try {
-      const input = api.orders.create.input.parse(req.body);
-      // Auto-assign request number in storage
-      const order = await storage.createOrder(input);
-      res.status(201).json(order);
-    } catch (err) {
-      console.error(err);
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
   app.get(api.orders.get.path, requireAuth, async (req, res) => {
     const user = req.user as any;
     const order = await storage.getOrder(req.params.id);
@@ -513,34 +561,402 @@ export async function registerRoutes(
     }
   });
 
+  // --- Order Offers ---
+  app.get(api.orderOffers.list.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+
+    // Allow customers to see offers for their orders, drivers to see their offers, admins to see all
+    if (user.role === "customer") {
+      // Filter to only offers for customer's orders
+      const orders = await storage.getAllOrders();
+      const customerOrders = orders.filter(order => order.customerId === user.id);
+      const customerOrderIds = customerOrders.map(order => order.id);
+
+      // Get offers for customer's orders
+      let offers = [];
+      for (const orderId of customerOrderIds) {
+        const orderOffers = await storage.getOrderOffersByOrder(orderId);
+        offers = [...offers, ...orderOffers];
+      }
+      res.json(offers);
+    } else if (user.role === "driver") {
+      // Drivers can see their own offers
+      const offers = await storage.getOrderOffersByDriver(user.id);
+      res.json(offers);
+    } else if (user.role === "admin" || user.role === "subadmin") {
+      // Admins can see all offers
+      // For now, return all offers based on query params
+      const { orderId, driverId } = req.query;
+      let offers = [];
+
+      if (orderId) {
+        offers = await storage.getOrderOffersByOrder(orderId as string);
+      } else if (driverId) {
+        offers = await storage.getOrderOffersByDriver(driverId as string);
+      } else {
+        // For now, return all offers (in a real app, you'd want pagination)
+        // We need to implement a method to get all offers in storage
+        // For now, we'll just return an empty array as a placeholder
+        offers = [];
+      }
+
+      res.json(offers);
+    } else {
+      res.status(403).json({ message: "Insufficient permissions" });
+    }
+  });
+
+  app.post(api.orderOffers.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = api.orderOffers.create.input.parse(req.body);
+      const user = req.user as any;
+
+      // Only drivers can create offers
+      if (user.role !== "driver") {
+        return res.status(403).json({ message: "Only drivers can create offers" });
+      }
+
+      // Verify that the driver is creating an offer for a valid order
+      const order = await storage.getOrder(input.orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Check if the order already has a driver assigned (for direct booking)
+      if (order.driverId) {
+        return res.status(400).json({ message: "Order already has a driver assigned" });
+      }
+
+      // Set the driverId from the authenticated user
+      const offer = await storage.createOrderOffer({
+        ...input,
+        driverId: user.id
+      });
+
+      res.status(201).json(offer);
+    } catch (err) {
+      console.error(err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get(api.orderOffers.get.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const offer = await storage.getOrderOffer(req.params.id);
+
+    if (!offer) return res.status(404).json({ message: "Offer not found" });
+
+    // Allow customers to see offers for their orders, drivers to see their own offers, admins to see all
+    if (user.role === "customer") {
+      const order = await storage.getOrder(offer.orderId);
+      if (!order || order.customerId !== user.id) {
+        return res.status(403).json({ message: "Insufficient permissions to access this offer" });
+      }
+    } else if (user.role === "driver") {
+      if (offer.driverId !== user.id) {
+        return res.status(403).json({ message: "Insufficient permissions to access this offer" });
+      }
+    } else if (user.role !== "admin" && user.role !== "subadmin") {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+
+    res.json(offer);
+  });
+
+  app.patch(api.orderOffers.update.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const offer = await storage.getOrderOffer(req.params.id);
+
+    if (!offer) return res.status(404).json({ message: "Offer not found" });
+
+    // Only the driver who created the offer can update it
+    if (user.role !== "driver" && user.role !== "customer") {
+      return res.status(403).json({ message: "Insufficient permissions to update this offer" });
+    }
+
+    // If it's a driver updating the offer, they can only update their own offers
+    if (user.role === "driver" && offer.driverId !== user.id) {
+      return res.status(403).json({ message: "Insufficient permissions to update this offer" });
+    }
+
+    // If it's a customer updating the offer, they can only update offers for their orders
+    if (user.role === "customer") {
+      const order = await storage.getOrder(offer.orderId);
+      if (!order || order.customerId !== user.id) {
+        return res.status(403).json({ message: "Insufficient permissions to update this offer" });
+      }
+    }
+
+    // Check if the request is to accept the offer (customer accepts)
+    if (req.body.accepted === true) {
+      // Update the order with this driver and set status to pending
+      await storage.assignDriver(offer.orderId, offer.driverId);
+    }
+
+    const updatedOffer = await storage.updateOrderOffer(req.params.id, req.body);
+    res.json(updatedOffer);
+  });
+
+  app.delete(api.orderOffers.delete.path, requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const offer = await storage.getOrderOffer(req.params.id);
+
+    if (!offer) return res.status(404).json({ message: "Offer not found" });
+
+    // Only the driver who created the offer can delete it
+    if (user.role !== "driver" || offer.driverId !== user.id) {
+      return res.status(403).json({ message: "Insufficient permissions to delete this offer" });
+    }
+
+    const deleted = await storage.deleteOrderOffer(req.params.id);
+    if (deleted) {
+      res.json({ message: "Offer deleted successfully" });
+    } else {
+      res.status(500).json({ message: "Failed to delete offer" });
+    }
+  });
+
   // --- Transactions ---
   app.get("/api/transactions", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return empty array or mock data
-    res.json([]);
+    try {
+      const { type, status, userId } = req.query;
+
+      // Get database instance
+      const db = getDb();
+
+      // Build query with optional filters
+      let query = db.select().from(transactions);
+
+      if (type) {
+        query = query.where(eq(transactions.type, type as string));
+      }
+
+      if (status) {
+        query = query.where(eq(transactions.status, status as string));
+      }
+
+      if (userId) {
+        query = query.where(eq(transactions.userId, userId as string));
+      }
+
+      // Order by creation date, newest first
+      query = query.orderBy(transactions.createdAt.desc());
+
+      const transactionList = await query;
+
+      res.json(transactionList);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).json({ error: "Failed to fetch transactions" });
+    }
   });
 
   app.post("/api/transactions", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock transaction
-    res.status(201).json({ id: "mock-transaction-id", ...req.body });
+    try {
+      const { userId, type, amount, status, metadata } = req.body;
+
+      // Validate required fields
+      if (!userId || !type || !amount || !status) {
+        return res.status(400).json({ error: "Missing required fields: userId, type, amount, status" });
+      }
+
+      // Validate amount is a valid number
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum)) {
+        return res.status(400).json({ error: "Invalid amount: must be a valid number" });
+      }
+
+      // Get database instance
+      const db = getDb();
+
+      // Start a transaction to ensure data consistency
+      const result = await db.transaction(async (tx) => {
+        // Create the transaction record
+        const [newTransaction] = await tx
+          .insert(transactions)
+          .values({
+            userId,
+            type,
+            amount: amount.toString(), // Store as string to maintain precision
+            status,
+            metadata: metadata || {},
+          })
+          .returning();
+
+        // Find the driver associated with this user
+        const [driver] = await tx
+          .select()
+          .from(drivers)
+          .where(eq(drivers.userId, userId));
+
+        if (driver) {
+          // Calculate the wallet balance from all completed transactions for this user
+          const allTransactions = await tx
+            .select()
+            .from(transactions)
+            .where(eq(transactions.userId, userId));
+
+          // Calculate wallet balance from all completed transactions
+          let calculatedBalance = 0;
+          allTransactions.forEach(transaction => {
+            if (transaction.status === 'completed') {
+              const transactionAmount = parseFloat(transaction.amount || "0");
+              if (transaction.type === "deposit" || transaction.type === "adjustment" || transaction.type === "commission") {
+                calculatedBalance += transactionAmount;
+              } else if (transaction.type === "withdrawal") {
+                calculatedBalance -= transactionAmount;
+              }
+            }
+          });
+
+          // Ensure balance doesn't go negative
+          if (calculatedBalance < 0) {
+            calculatedBalance = 0;
+          }
+
+          // Update the driver's wallet balance with the calculated value
+          await tx
+            .update(drivers)
+            .set({ walletBalance: calculatedBalance.toString() })
+            .where(eq(drivers.userId, userId));
+
+          console.log(`Updated wallet balance for driver userId: ${userId}, calculated balance: ${calculatedBalance}`);
+        } else if (type === "adjustment" || type === "commission") {
+          // For adjustment and commission transactions, a driver must exist
+          throw new Error(`No driver found for userId: ${userId}. Cannot create ${type} transaction.`);
+        } else {
+          console.log(`No driver found for userId: ${userId}, but proceeding with ${type} transaction`);
+          // For other transaction types (like customer transactions), we can proceed
+        }
+
+        return newTransaction;
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error creating transaction:", error);
+      res.status(500).json({ error: "Failed to create transaction" });
+    }
   });
 
   app.patch("/api/transactions/:id", requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock transaction
-    res.json({ id: req.params.id, ...req.body });
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+
+      // Get database instance
+      const db = getDb();
+
+      // Get the original transaction to calculate wallet balance adjustment
+      const [originalTransaction] = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.id, id));
+
+      if (!originalTransaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      // Start a transaction to ensure data consistency
+      const result = await db.transaction(async (tx) => {
+        // Update the transaction record
+        const [updatedTransaction] = await tx
+          .update(transactions)
+          .set(updates)
+          .where(eq(transactions.id, id))
+          .returning();
+
+        // If amount or type changed, we need to adjust the wallet balance
+        const originalAmount = parseFloat(originalTransaction.amount || "0");
+        const newAmount = updates.amount ? parseFloat(updates.amount) : originalAmount;
+        const newType = updates.type || originalTransaction.type;
+        const newStatus = updates.status || originalTransaction.status;
+
+        // Only adjust wallet if the transaction is completed
+        if (newStatus === "completed") {
+          // Find the driver associated with this transaction
+          const [driver] = await tx
+            .select()
+            .from(drivers)
+            .where(eq(drivers.userId, originalTransaction.userId));
+
+          if (driver) {
+            // Recalculate the wallet balance from all completed transactions for this user
+            // This ensures consistency even when a transaction is updated
+            const allTransactions = await tx
+              .select()
+              .from(transactions)
+              .where(eq(transactions.userId, originalTransaction.userId));
+
+            // Calculate wallet balance from all completed transactions
+            let calculatedBalance = 0;
+            allTransactions.forEach(transaction => {
+              if (transaction.status === 'completed') {
+                const transactionAmount = parseFloat(transaction.amount || "0");
+                if (transaction.type === "deposit" || transaction.type === "adjustment" || transaction.type === "commission") {
+                  calculatedBalance += transactionAmount;
+                } else if (transaction.type === "withdrawal") {
+                  calculatedBalance -= transactionAmount;
+                }
+              }
+            });
+
+            // Ensure balance doesn't go negative
+            if (calculatedBalance < 0) {
+              calculatedBalance = 0;
+            }
+
+            // Update the driver's wallet balance with the calculated value
+            await tx
+              .update(drivers)
+              .set({ walletBalance: calculatedBalance.toString() })
+              .where(eq(drivers.userId, originalTransaction.userId));
+
+            console.log(`Updated wallet balance for driver userId: ${originalTransaction.userId}, calculated balance: ${calculatedBalance}`);
+          } else if (originalTransaction.type === "adjustment" || originalTransaction.type === "commission") {
+            // For adjustment and commission transactions, a driver must exist
+            throw new Error(`No driver found for userId: ${originalTransaction.userId}. Cannot update ${originalTransaction.type} transaction.`);
+          } else {
+            console.log(`No driver found for userId: ${originalTransaction.userId}, but proceeding with ${originalTransaction.type} transaction update`);
+          }
+        }
+
+        return updatedTransaction;
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating transaction:", error);
+      res.status(500).json({ error: "Failed to update transaction" });
+    }
   });
 
   // --- Additional Transaction Endpoints ---
   app.get(api.transactions.get.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
-    // For MVP, return mock transaction
-    const transaction = {
-      id: req.params.id,
-      userId: "user1",
-      type: "deposit",
-      amount: "100",
-      status: "completed",
-      createdAt: new Date().toISOString(),
-    };
-    res.json(transaction);
+    try {
+      const { id } = req.params;
+
+      // Get database instance
+      const db = getDb();
+
+      // Get the transaction
+      const [transaction] = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.id, id));
+
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      res.json(transaction);
+    } catch (error) {
+      console.error("Error fetching transaction:", error);
+      res.status(500).json({ error: "Failed to fetch transaction" });
+    }
   });
 
   // --- Ratings ---
@@ -1149,6 +1565,129 @@ export async function registerRoutes(
     }
   });
 
+  // --- Admin Settings (SEO Settings) ---
+  app.get("/api/admin-settings/:key", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const setting = await storage.getAdminSetting(key);
+
+      if (!setting) {
+        return res.status(404).json({ message: "Setting not found" });
+      }
+
+      res.json(setting.value);
+    } catch (error) {
+      console.error("Error fetching admin setting:", error);
+      res.status(500).json({ message: "Failed to fetch admin setting" });
+    }
+  });
+
+  app.post("/api/admin-settings/:key", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+
+      if (!value) {
+        return res.status(400).json({ message: "Value is required" });
+      }
+
+      const setting = await storage.setAdminSetting(key, value);
+      res.json(setting.value);
+    } catch (error) {
+      console.error("Error setting admin setting:", error);
+      res.status(500).json({ message: "Failed to set admin setting" });
+    }
+  });
+
+  // --- Admin Notes ---
+  app.get(api.adminNotes.list.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const notes = await storage.getAllAdminNotes();
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching admin notes:", error);
+      res.status(500).json({ message: "Failed to fetch admin notes" });
+    }
+  });
+
+  app.get(api.adminNotes.listBySubcategory.path, async (req, res) => {
+    try {
+      const notes = await storage.getAdminNotesBySubcategory(req.params.subcategoryId);
+      res.json(notes);
+    } catch (error) {
+      console.error("Error fetching admin notes by subcategory:", error);
+      res.status(500).json({ message: "Failed to fetch admin notes by subcategory" });
+    }
+  });
+
+  app.post(api.adminNotes.create.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const input = api.adminNotes.create.input.parse(req.body);
+      const note = await storage.createAdminNote(input);
+      res.status(201).json(note);
+    } catch (err) {
+      console.error("Error creating admin note:", err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Failed to create admin note" });
+    }
+  });
+
+  app.patch(api.adminNotes.update.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const input = api.adminNotes.update.input.parse(req.body);
+      const updatedNote = await storage.updateAdminNote(req.params.id, input);
+      if (!updatedNote) return res.status(404).json({ message: "Admin note not found" });
+      res.json(updatedNote);
+    } catch (err) {
+      console.error("Error updating admin note:", err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Failed to update admin note" });
+    }
+  });
+
+  app.delete(api.adminNotes.delete.path, requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteAdminNote(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Admin note not found" });
+      res.json({ message: "Admin note deleted successfully" });
+    } catch (err) {
+      console.error("Error deleting admin note:", err);
+      res.status(500).json({ message: "Failed to delete admin note" });
+    }
+  });
+
+  // Update the order creation endpoint to allow customers to create orders
+  app.post(api.orders.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = api.orders.create.input.parse(req.body);
+      const user = req.user as any;
+
+      // Only allow customers to create their own orders
+      if (user.role !== "customer") {
+        return res.status(403).json({ message: "Only customers can create orders" });
+      }
+
+      // Set the customerId to the authenticated user's ID
+      const orderData = {
+        ...input,
+        customerId: user.id
+      };
+
+      // Create order with admin notes included if subService (subcategory) is provided
+      const order = await storage.createOrder(orderData, true);
+      res.status(201).json(order);
+    } catch (err) {
+      console.error(err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
 
   return httpServer;
 }

@@ -4,13 +4,14 @@ import { useServiceCategories } from "@/hooks/use-service-categories";
 import { useSubcategories } from "@/hooks/use-subcategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Redirect } from "wouter";
-import { Loader2, Camera, Upload, Plus } from "lucide-react";
+import { Loader2, Camera, Upload, Plus, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Schema for the consolidated form
@@ -38,6 +39,7 @@ export default function DriverRegisterPage() {
   const [newCategoryMode, setNewCategoryMode] = useState(false);
   const [newSubServiceMode, setNewSubServiceMode] = useState(false);
   const [availableSubServices, setAvailableSubServices] = useState<string[]>([]);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   // Form setup
   const form = useForm({
@@ -73,56 +75,74 @@ export default function DriverRegisterPage() {
 
   // Update sub-services based on selected category
   useEffect(() => {
-    const selectedCategory = form.watch("serviceCategory");
-    if (selectedCategory && allSubcategories) {
-      // Filter subcategories based on the selected category
-      const filteredSubcategories = allSubcategories.filter(
-        sub => sub.categoryId === selectedCategory
-      );
-      setAvailableSubServices(filteredSubcategories.map(sub => sub.id));
-    } else {
-      setAvailableSubServices([]);
-    }
-  }, [form.watch("serviceCategory"), allSubcategories]);
+    const subscription = form.watch((value, { name }) => {
+      if (name === "serviceCategory") {
+        const selectedCategory = value.serviceCategory;
+        if (selectedCategory && allSubcategories) {
+          // Filter subcategories based on the selected category
+          const filteredSubcategories = allSubcategories.filter(
+            sub => sub.categoryId === selectedCategory
+          );
+          setAvailableSubServices(filteredSubcategories.map(sub => sub.id));
+        } else {
+          setAvailableSubServices([]);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [allSubcategories, form]);
 
   // Handle password confirmation validation
   useEffect(() => {
-    const password = form.watch("password");
-    const confirmPassword = form.watch("confirmPassword");
-    
-    if (password && confirmPassword && password !== confirmPassword) {
-      form.setError("confirmPassword", {
-        type: "manual",
-        message: "Passwords do not match"
-      });
-    } else if (password && confirmPassword && password === confirmPassword) {
-      form.clearErrors("confirmPassword");
-    }
-  }, [form.watch("password"), form.watch("confirmPassword")]);
+    const subscription = form.watch((value, { name }) => {
+      if (name === "password" || name === "confirmPassword") {
+        const password = value.password;
+        const confirmPassword = value.confirmPassword;
+
+        if (password && confirmPassword && password !== confirmPassword) {
+          form.setError("confirmPassword", {
+            type: "manual",
+            message: "Passwords do not match"
+          });
+        } else if (password && confirmPassword && password === confirmPassword) {
+          form.clearErrors("confirmPassword");
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   // Update sub-services based on selected category
   useEffect(() => {
-    const selectedCategory = form.watch("serviceCategory");
-    if (selectedCategory) {
-      // Define sub-services based on category
-      switch (selectedCategory) {
-        case "water_tanker":
-          setAvailableSubServices(["5000l", "10000l", "15000l", "20000l"]);
-          break;
-        case "sand_transport":
-          setAvailableSubServices(["fine_sand", "coarse_sand", "construction_sand"]);
-          break;
-        case "construction":
-          setAvailableSubServices(["cement", "steel", "bricks"]);
-          break;
-        case "delivery":
-          setAvailableSubServices(["small", "medium", "large", "heavy"]);
-          break;
-        default:
-          setAvailableSubServices([]);
+    const subscription = form.watch((value, { name }) => {
+      if (name === "serviceCategory") {
+        const selectedCategory = value.serviceCategory;
+        if (selectedCategory) {
+          // Define sub-services based on category
+          switch (selectedCategory) {
+            case "water_tanker":
+              setAvailableSubServices(["5000l", "10000l", "15000l", "20000l"]);
+              break;
+            case "sand_transport":
+              setAvailableSubServices(["fine_sand", "coarse_sand", "construction_sand"]);
+              break;
+            case "construction":
+              setAvailableSubServices(["cement", "steel", "bricks"]);
+              break;
+            case "delivery":
+              setAvailableSubServices(["small", "medium", "large", "heavy"]);
+              break;
+            default:
+              setAvailableSubServices([]);
+          }
+        }
       }
-    }
-  }, [form.watch("serviceCategory")]);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   if (user) {
     if (user.role === "admin" || user.role === "subadmin") return <Redirect to="/admin" />;
@@ -161,8 +181,8 @@ export default function DriverRegisterPage() {
       // Register the user
       const userData = await registerMutation.mutateAsync(registrationData);
 
-      // Show success message
-      alert("Registration completed successfully! Your application is pending approval.");
+      // Set registration success state
+      setRegistrationSuccess(true);
     } catch (error) {
       console.error("Registration failed:", error);
       alert("Registration failed. Please try again.");
@@ -193,6 +213,43 @@ export default function DriverRegisterPage() {
     }
   };
 
+  // Show success message if registration was successful
+  if (registrationSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 py-12 px-4 sm:px-6 flex items-center justify-center">
+        <div className="max-w-md w-full">
+          <Card className="overflow-hidden shadow-2xl">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-emerald-600 text-white text-center py-8">
+              <div className="flex justify-center mb-4">
+                <CheckCircle className="w-16 h-16 text-white" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Registration Successful!</CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 text-center">
+              <div className="space-y-4">
+                <p className="text-lg text-gray-700">
+                  Your registration has been submitted successfully!
+                </p>
+                <p className="text-gray-600">
+                  Please wait for approval from the administration. You will receive a notification once your account is approved.
+                </p>
+                <div className="pt-4">
+                  <Button
+                    variant="outline"
+                    className="w-48 h-12 text-base border-2 border-green-500 text-green-600 hover:bg-green-50"
+                    onClick={() => window.location.reload()}
+                  >
+                    Back to Home
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-12 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto">
@@ -207,7 +264,7 @@ export default function DriverRegisterPage() {
                 {/* Personal Information Section */}
                 <div className="space-y-6">
                   <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Personal Information</h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
@@ -278,9 +335,8 @@ export default function DriverRegisterPage() {
                         <FormItem>
                           <FormLabel className="text-base">Password</FormLabel>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               id="password"
-                              type="password"
                               placeholder="••••••"
                               className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
                               {...field}
@@ -299,9 +355,8 @@ export default function DriverRegisterPage() {
                         <FormItem>
                           <FormLabel className="text-base">Confirm Password</FormLabel>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               id="confirmPassword"
-                              type="password"
                               placeholder="••••••"
                               className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
                               {...field}
@@ -348,7 +403,7 @@ export default function DriverRegisterPage() {
                 {/* Vehicle Information Section */}
                 <div className="space-y-6">
                   <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Vehicle Information</h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
@@ -454,7 +509,7 @@ export default function DriverRegisterPage() {
                 {/* Service Category Section */}
                 <div className="space-y-6">
                   <h3 className="text-xl font-semibold text-gray-800 border-b pb-2">Service Category</h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <FormLabel className="text-base">Main Service Category</FormLabel>

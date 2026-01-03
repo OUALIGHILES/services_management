@@ -34,7 +34,6 @@ export function useOrder(id: string) {
 
 export function useCreateOrder() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (data: any) => {
@@ -46,22 +45,23 @@ export function useCreateOrder() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create order");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to create order");
+      }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables, context) => {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
-      toast({ title: "Order Created", description: "Your request has been submitted." });
     },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    onError: (err: Error, variables, context) => {
+      // Error handling will be done in the component where this hook is used
     },
   });
 }
 
 export function useUpdateOrder() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<InsertOrder>) => {
@@ -75,12 +75,11 @@ export function useUpdateOrder() {
       if (!res.ok) throw new Error("Failed to update order");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables, context) => {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
-      toast({ title: "Order Updated", description: "Changes saved successfully." });
     },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    onError: (err: Error, variables, context) => {
+      // Error handling will be done in the component where this hook is used
     },
   });
 }

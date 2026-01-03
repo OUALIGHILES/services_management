@@ -11,19 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle, MapPin, Camera, CreditCard, ShoppingCart, Upload } from "lucide-react";
+import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle, MapPin, Camera, CreditCard, ShoppingCart, Upload, CheckCircle, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef } from "react";
 
 // Schema
 const orderSchema = z.object({
   orderType: z.enum(["direct", "quote"], { required_error: "Order type is required" }),
+  pricingOption: z.enum(["auto_accept", "choose_offer"], { required_error: "Pricing option is required" }),
   pickupAddress: z.string().min(5, "Pickup address is required"),
   dropoffAddress: z.string().min(5, "Dropoff address is required"),
   notes: z.string().optional(),
   fragile: z.boolean().optional(),
   gateCode: z.string().optional(),
-  paymentMethod: z.enum(["cash", "electronic"], { required_error: "Payment method is required" }),
+  paymentMethod: z.enum(["electronic"], { required_error: "Payment method is required" }),
   photos: z.array(z.string()).optional(),
 });
 
@@ -37,17 +38,19 @@ export default function BookProduct() {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [bookingStep, setBookingStep] = useState<'details' | 'confirmation'>('details');
 
   const form = useForm({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       orderType: "direct",
+      pricingOption: "auto_accept",
       pickupAddress: "",
       dropoffAddress: "",
       notes: "",
       fragile: false,
       gateCode: "",
-      paymentMethod: "cash",
+      paymentMethod: "electronic",
       photos: [],
     },
   });
@@ -93,7 +96,7 @@ export default function BookProduct() {
     if (selectedImages.length === 0) return [];
 
     const uploadedUrls: string[] = [];
-    
+
     for (let i = 0; i < selectedImages.length; i++) {
       const fileInput = fileInputRef.current;
       if (!fileInput || !fileInput.files || i >= fileInput.files.length) continue;
@@ -132,7 +135,22 @@ export default function BookProduct() {
     return uploadedUrls;
   };
 
-  const onSubmit = async (data: any) => {
+  const handleBookingNow = () => {
+    // Validate required fields before proceeding
+    if (!form.getValues('pickupAddress') || !form.getValues('dropoffAddress')) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in both pickup and dropoff addresses",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBookingStep('confirmation');
+  };
+
+  const handleConfirmBooking = async (bookingType: 'auto_accept' | 'offer_based') => {
+    const formData = form.getValues();
+
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -150,22 +168,23 @@ export default function BookProduct() {
       const payload = {
         customerId: user.id,
         serviceId: "delivery-service", // Default service for product delivery
-        status: "new",
+        status: bookingType === 'auto_accept' ? "pending" : "new", // If auto_accept, set to pending to wait for driver assignment
         location: {
-          pickup: { address: data.pickupAddress, lat: 0, lng: 0 },
-          dropoff: { address: data.dropoffAddress, lat: 0, lng: 0 },
+          pickup: { address: formData.pickupAddress, lat: 0, lng: 0 },
+          dropoff: { address: formData.dropoffAddress, lat: 0, lng: 0 },
         },
-        notes: data.notes ? `${data.notes} | Product ID: ${data.productId}` : `Product ID: ${data.productId}`,
-        subService: data.orderType === "quote" ? "quote_request" : undefined,
+        notes: formData.notes ? `${formData.notes} | Product ID: ${params?.productId}` : `Product ID: ${params?.productId}`,
+        subService: bookingType === 'offer_based' ? "quote_request" : undefined,
         requestNumber: `REQ-${Math.floor(Math.random() * 100000)}`, // Simple generation
-        paymentMethod: data.paymentMethod,
+        paymentMethod: formData.paymentMethod,
         photos: uploadedPhotos,
-        orderType: data.orderType, // Add order type
+        orderType: bookingType === 'auto_accept' ? 'direct' : 'quote',
+        pricingOption: bookingType,
       };
 
       createOrder.mutate(payload, {
-        onSuccess: () => {
-          if (data.orderType === "quote") {
+        onSuccess: (response) => {
+          if (bookingType === 'offer_based') {
             toast({
               title: "Quote Request Sent",
               description: "Your quote request has been submitted successfully.",
@@ -173,11 +192,13 @@ export default function BookProduct() {
             // Redirect to offers page to see available quotes
             setLocation("/customer/offers");
           } else {
+            // For direct booking with auto_accept, the order goes to pending status
+            // and should be assigned to a driver automatically
             toast({
               title: "Order Placed",
               description: "Your order has been placed successfully.",
             });
-            // For direct booking, go to orders
+            // Go to orders page to see the pending order
             setLocation("/customer/orders");
           }
         },
@@ -209,11 +230,138 @@ export default function BookProduct() {
     );
   }
 
+  if (bookingStep === 'confirmation') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Button
+          variant="ghost"
+          className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
+          onClick={() => setBookingStep('details')}
+        >
+          <ArrowLeft className="mr-2 w-4 h-4" /> Back to Details
+        </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-muted rounded-lg w-16 h-16 flex items-center justify-center">
+                    {product.images && product.images.length > 0 ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <ShoppingCart className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-bold">{product.name}</h3>
+                    <p className="text-lg font-bold text-primary">${parseFloat(product.price).toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground">Location</h4>
+                    <p className="font-medium">
+                      {form.getValues('pickupAddress')} to {form.getValues('dropoffAddress')}
+                    </p>
+                  </div>
+
+                  {form.getValues('notes') && (
+                    <div>
+                      <h4 className="font-medium text-sm text-muted-foreground">Customer Notes</h4>
+                      <p className="font-medium">{form.getValues('notes')}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">Expected Price</h4>
+                    <p className="text-xl font-bold text-primary">
+                      ${parseFloat(product.price).toFixed(2)} + Delivery Fee
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Final price confirmed when driver accepts.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Booking Options */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Booking Options</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <Button
+                    size="lg"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('auto_accept')}
+                    disabled={createOrder.isPending}
+                  >
+                    {createOrder.isPending ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Confirm & Send to Driver</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent directly to available drivers
+                        </p>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('offer_based')}
+                    disabled={createOrder.isPending}
+                  >
+                    {createOrder.isPending ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Choose Offer</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent to drivers for bidding
+                        </p>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <Button 
-        variant="ghost" 
-        className="mb-6 pl-0 hover:bg-transparent hover:text-primary" 
+      <Button
+        variant="ghost"
+        className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
         onClick={() => window.history.back()}
       >
         <ArrowLeft className="mr-2 w-4 h-4" /> Back
@@ -225,9 +373,9 @@ export default function BookProduct() {
           <div className="flex items-center gap-4">
             <div className="bg-muted rounded-lg w-20 h-20 flex items-center justify-center">
               {product.images && product.images.length > 0 ? (
-                <img 
-                  src={product.images[0]} 
-                  alt={product.name} 
+                <img
+                  src={product.images[0]}
+                  alt={product.name}
                   className="w-full h-full object-cover rounded-lg"
                 />
               ) : (
@@ -249,7 +397,11 @@ export default function BookProduct() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleBookingNow();
+            }} className="space-y-6">
               {/* Order Type Selection */}
               <FormField
                 control={form.control}
@@ -284,35 +436,193 @@ export default function BookProduct() {
                 )}
               />
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="pickupAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>📍 Pickup Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter pickup address" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Pricing Option Selection */}
+              <FormField
+                control={form.control}
+                name="pricingOption"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pricing Option</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant={field.value === "auto_accept" ? "default" : "outline"}
+                        onClick={() => field.onChange("auto_accept")}
+                        className="flex flex-col items-center justify-center py-6"
+                      >
+                        <CheckCircle className="w-6 h-6 mb-2" />
+                        <span>Auto Accept</span>
+                        <p className="text-xs mt-1 text-muted-foreground">Automatically accept first driver</p>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "choose_offer" ? "default" : "outline"}
+                        onClick={() => field.onChange("choose_offer")}
+                        className="flex flex-col items-center justify-center py-6"
+                      >
+                        <DollarSign className="w-6 h-6 mb-2" />
+                        <span>Choose Offer</span>
+                        <p className="text-xs mt-1 text-muted-foreground">Review and select best offer</p>
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Location Selection */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">📍 Location Selection</h3>
+                <p className="text-sm text-muted-foreground">Select location on map</p>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="pickupAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>📍 Pickup Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter pickup address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="dropoffAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>📍 Dropoff Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter delivery address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Map placeholder */}
+                <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center">
+                  <MapPin className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">Interactive Map for KSA Location Selection</p>
+                  <p className="text-sm text-muted-foreground mt-1">Click on the map to select your location</p>
+                </div>
+              </div>
+
+              {/* Additional Notes */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">📝 Additional Notes</h3>
 
                 <FormField
                   control={form.control}
-                  name="dropoffAddress"
+                  name="notes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>📍 Dropoff Address</FormLabel>
+                      <FormLabel>Example: There's a dog at home</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter delivery address" {...field} />
+                        <Textarea
+                          placeholder="Special instructions, fragile items, access details, etc."
+                          className="resize-none"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              {/* Photo Attachment */}
+              <FormField
+                control={form.control}
+                name="photos"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>🖼️ Attach Photos</FormLabel>
+                    <div
+                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Camera className="w-8 h-8 mx-auto text-muted-foreground" />
+                      <p className="mt-2 text-sm text-muted-foreground">Click to upload photos</p>
+                      <p className="text-xs text-muted-foreground">For hard-to-describe locations</p>
+                    </div>
+
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageChange}
+                    />
+
+                    {/* Preview images */}
+                    {imagePreviews.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {imagePreviews.map((preview, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={preview}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeImage(index);
+                              }}
+                            >
+                              <span className="w-4 h-4">✕</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Payment Method */}
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>💳 Payment Method</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant={field.value === "cash" ? "default" : "outline"}
+                        onClick={() => field.onChange("cash")}
+                        className="flex items-center justify-center py-6"
+                      >
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Cash
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === "electronic" ? "default" : "outline"}
+                        onClick={() => field.onChange("electronic")}
+                        className="flex items-center justify-center py-6"
+                      >
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Electronic
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               {/* Additional Options */}
               <div className="space-y-4">
@@ -355,138 +665,39 @@ export default function BookProduct() {
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes for Driver</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Special instructions, fragile items, access details, etc." 
-                          className="resize-none" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
-              {/* Payment Method */}
-              <FormField
-                control={form.control}
-                name="paymentMethod"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>💳 Payment Method</FormLabel>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button
-                        type="button"
-                        variant={field.value === "cash" ? "default" : "outline"}
-                        onClick={() => field.onChange("cash")}
-                        className="flex items-center justify-center py-6"
-                      >
-                        <CreditCard className="w-5 h-5 mr-2" />
-                        Cash
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={field.value === "electronic" ? "default" : "outline"}
-                        onClick={() => field.onChange("electronic")}
-                        className="flex items-center justify-center py-6"
-                      >
-                        <CreditCard className="w-5 h-5 mr-2" />
-                        Electronic
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Photo Attachment */}
-              <FormField
-                control={form.control}
-                name="photos"
-                render={() => (
-                  <FormItem>
-                    <FormLabel>🖼️ Attach Photos</FormLabel>
-                    <div 
-                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:bg-muted transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Camera className="w-8 h-8 mx-auto text-muted-foreground" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to upload photos</p>
-                      <p className="text-xs text-muted-foreground">For hard-to-describe locations</p>
-                    </div>
-                    
-                    {/* Hidden file input */}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      multiple
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                    />
-                    
-                    {/* Preview images */}
-                    {imagePreviews.length > 0 && (
-                      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {imagePreviews.map((preview, index) => (
-                          <div key={index} className="relative group">
-                            <img 
-                              src={preview} 
-                              alt={`Preview ${index + 1}`} 
-                              className="w-full h-24 object-cover rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeImage(index);
-                              }}
-                            >
-                              <span className="w-4 h-4">✕</span>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <div className="bg-muted/30 p-4 rounded-lg text-sm text-muted-foreground">
-                <p>Estimated Price: <span className="font-bold text-foreground">${product.price} + Delivery Fee</span></p>
+                <p>Expected Price: <span className="font-bold text-foreground">${product.price} + Delivery Fee</span></p>
                 <p className="text-xs mt-1">Final price confirmed when driver accepts.</p>
               </div>
 
               <div className="flex gap-3">
                 <Button
-                  type="submit"
+                  type="button"
                   size="lg"
                   className="flex-1"
-                  disabled={createOrder.isPending}
-                  onClick={() => form.setValue('orderType', 'quote')}
+                  variant="outline"
+                  onClick={() => {
+                    form.setValue('orderType', 'quote');
+                    form.setValue('pricingOption', 'choose_offer');
+                    handleBookingNow();
+                  }}
                 >
-                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "💰 Get Price Quotes"}
+                  Choose Offer
                 </Button>
                 <Button
-                  type="submit"
+                  type="button"
                   size="lg"
                   className="flex-1"
                   variant="secondary"
-                  disabled={createOrder.isPending}
-                  onClick={() => form.setValue('orderType', 'direct')}
+                  onClick={() => {
+                    form.setValue('orderType', 'direct');
+                    form.setValue('pricingOption', 'auto_accept');
+                    handleBookingNow();
+                  }}
                 >
-                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "✅ Book Now"}
+                  Confirm
                 </Button>
               </div>
             </form>

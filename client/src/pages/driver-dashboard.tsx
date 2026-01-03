@@ -130,6 +130,8 @@ export default function DriverDashboard() {
                   if(driverId) updateStatus.mutate({ status: user?.driverProfile?.status === "online" ? "offline" : "online" });
                 }}
                 className={`w-14 h-8 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${
+                  updateStatus.isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                } ${
                   user?.driverProfile?.status === "online" ? 'bg-green-500' : 'bg-slate-600'
                 }`}
               >

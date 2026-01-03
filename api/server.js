@@ -236,8 +236,15 @@ async function handleServiceRoutes(req, res, method, url) {
   switch (method) {
     case 'GET':
       if (url.includes('/categories')) {
-        const categories = await storage.getAllServiceCategories();
-        return res.json(categories);
+        if (serviceId && !url.includes('/categories/')) {
+          // Handle /api/service-categories/:id
+          const category = await storage.getServiceCategory(serviceId);
+          if (!category) return res.status(404).json({ message: "Service category not found" });
+          return res.json(category);
+        } else if (url.includes('/categories')) {
+          const categories = await storage.getAllServiceCategories();
+          return res.json(categories);
+        }
       } else {
         const services = await storage.getAllServices();
         return res.json(services);

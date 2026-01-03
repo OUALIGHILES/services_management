@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle, MapPin, Camera, CreditCard, ShoppingCart } from "lucide-react";
+import { Loader2, ArrowLeft, Truck, DollarSign, MessageCircle, MapPin, Camera, CreditCard, ShoppingCart, CheckCircle, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 // Schema
 const orderSchema = z.object({
@@ -33,6 +34,11 @@ export default function BookService() {
   const { data: services } = useServices();
   const { user } = useAuth();
   const createOrder = useCreateOrder();
+  const { toast } = useToast();
+  const [bookingStep, setBookingStep] = useState<'details' | 'confirmation'>('details');
+
+  // Get selected service for confirmation step
+  const selectedService = services?.find(service => service.id === form.getValues('serviceId'));
 
   const form = useForm({
     resolver: zodResolver(orderSchema),
@@ -49,38 +55,192 @@ export default function BookService() {
     },
   });
 
-  const onSubmit = (data: any) => {
-    if (!user) return;
+  const handleBookingNow = () => {
+    // Validate required fields before proceeding
+    if (!form.getValues('pickupAddress') || !form.getValues('dropoffAddress')) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in both pickup and dropoff addresses",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBookingStep('confirmation');
+  };
+
+  const handleConfirmBooking = (bookingType: 'auto_accept' | 'offer_based') => {
+    const formData = form.getValues();
+
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to book a service",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Construct the payload matching DB schema roughly
     // Location is jsonb, so we simulate lat/lng for now
     const payload = {
       customerId: user.id,
-      serviceId: data.serviceId,
-      status: "new",
+      serviceId: formData.serviceId,
+      status: bookingType === 'auto_accept' ? 'pending' : 'new',
       location: {
-        pickup: { address: data.pickupAddress, lat: 0, lng: 0 },
-        dropoff: { address: data.dropoffAddress, lat: 0, lng: 0 },
+        pickup: { address: formData.pickupAddress, lat: 0, lng: 0 },
+        dropoff: { address: formData.dropoffAddress, lat: 0, lng: 0 },
       },
-      notes: data.notes,
-      subService: data.orderType === "quote" ? "quote_request" : undefined,
+      notes: formData.notes,
+      subService: bookingType === 'offer_based' ? "quote_request" : undefined,
       requestNumber: `REQ-${Math.floor(Math.random() * 100000)}`, // Simple generation
-      paymentMethod: data.paymentMethod,
-      photos: data.photos,
+      paymentMethod: formData.paymentMethod,
+      photos: formData.photos,
+      orderType: bookingType === 'auto_accept' ? 'direct' : 'quote',
+      pricingOption: bookingType,
     };
 
     createOrder.mutate(payload, {
-      onSuccess: () => {
-        if (data.orderType === "quote") {
+      onSuccess: (response) => {
+        if (bookingType === 'offer_based') {
           // Redirect to offers page to see available quotes
           setLocation("/customer/offers");
         } else {
           // For direct booking, go to orders
           setLocation("/customer/orders");
         }
+        toast({
+          title: "Order Placed",
+          description: "Your order has been placed successfully."
+        });
       },
+      onError: (error) => {
+        toast({
+          title: "Order Failed",
+          description: error.message || "Failed to place order",
+          variant: "destructive",
+        });
+      }
     });
   };
+
+  if (bookingStep === 'confirmation') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Button
+          variant="ghost"
+          className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
+          onClick={() => setBookingStep('details')}
+        >
+          <ArrowLeft className="mr-2 w-4 h-4" /> Back to Details
+        </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-muted rounded-lg w-16 h-16 flex items-center justify-center">
+                    <ShoppingCart className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold">{selectedService ? (typeof selectedService.name === 'object' ? selectedService.name.en || selectedService.name.ar || selectedService.name.ur : selectedService.name) : 'Delivery Service'}</h3>
+                    <p className="text-lg font-bold text-primary">$88.00</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground">Location</h4>
+                    <p className="font-medium">
+                      {form.getValues('pickupAddress')} to {form.getValues('dropoffAddress')}
+                    </p>
+                  </div>
+
+                  {form.getValues('notes') && (
+                    <div>
+                      <h4 className="font-medium text-sm text-muted-foreground">Customer Notes</h4>
+                      <p className="font-medium">{form.getValues('notes')}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">Expected Price</h4>
+                    <p className="text-xl font-bold text-primary">
+                      $88.00 + Delivery Fee
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Final price confirmed when driver accepts.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Booking Options */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Booking Options</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <Button
+                    size="lg"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('auto_accept')}
+                    disabled={createOrder.isPending}
+                  >
+                    {createOrder.isPending ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Confirm & Send to Driver</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent directly to available drivers
+                        </p>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('offer_based')}
+                    disabled={createOrder.isPending}
+                  >
+                    {createOrder.isPending ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Choose Offer</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent to drivers for bidding
+                        </p>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -94,7 +254,11 @@ export default function BookService() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleBookingNow();
+            }} className="space-y-6">
               <FormField
                 control={form.control}
                 name="serviceId"
@@ -248,16 +412,7 @@ export default function BookService() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>💳 Payment Method</FormLabel>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button
-                        type="button"
-                        variant={field.value === "cash" ? "default" : "outline"}
-                        onClick={() => field.onChange("cash")}
-                        className="flex items-center justify-center py-6"
-                      >
-                        <CreditCard className="w-5 h-5 mr-2" />
-                        Cash
-                      </Button>
+                    <div className="grid grid-cols-1 gap-4">
                       <Button
                         type="button"
                         variant={field.value === "electronic" ? "default" : "outline"}
@@ -297,23 +452,28 @@ export default function BookService() {
 
               <div className="flex gap-3">
                 <Button
-                  type="submit"
+                  type="button"
                   size="lg"
                   className="flex-1"
-                  disabled={createOrder.isPending}
-                  onClick={() => form.setValue('orderType', 'quote')}
+                  variant="outline"
+                  onClick={() => {
+                    form.setValue('orderType', 'quote');
+                    handleBookingNow();
+                  }}
                 >
-                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "💰 Get Price Quotes"}
+                  💰 Get Price Quotes
                 </Button>
                 <Button
-                  type="submit"
+                  type="button"
                   size="lg"
                   className="flex-1"
                   variant="secondary"
-                  disabled={createOrder.isPending}
-                  onClick={() => form.setValue('orderType', 'direct')}
+                  onClick={() => {
+                    form.setValue('orderType', 'direct');
+                    handleBookingNow();
+                  }}
                 >
-                  {createOrder.isPending ? <Loader2 className="animate-spin mr-2" /> : "✅ Book Now"}
+                  ✅ Book Now
                 </Button>
               </div>
             </form>

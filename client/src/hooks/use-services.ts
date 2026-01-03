@@ -23,3 +23,16 @@ export function useServices() {
     },
   });
 }
+
+export function useServicesByCategory(categoryId: string) {
+  return useQuery({
+    queryKey: ['services', 'by-category', categoryId],
+    queryFn: async () => {
+      const res = await fetch(api.services.list.path, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch services");
+      const services = await res.json() as Service[];
+      return services.filter(service => service.categoryId === categoryId);
+    },
+    enabled: !!categoryId,
+  });
+}

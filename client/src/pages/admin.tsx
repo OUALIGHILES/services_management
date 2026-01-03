@@ -327,6 +327,11 @@ export default function Admin() {
           link="/admin/help"
         />
         <DashboardCard
+          title="Admin Notes"
+          description="Manage notes that appear to customers based on service subcategories"
+          link="/admin/notes"
+        />
+        <DashboardCard
           title="SEO Settings"
           description="Configure SEO settings for your platform"
           link="/admin/seo"

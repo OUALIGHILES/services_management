@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import { Subcategory, InsertSubcategory } from "@shared/schema";
+import { Subcategory, InsertSubcategory, AdminNote, InsertAdminNote } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 export function useSubcategories() {

@@ -21,7 +21,7 @@ export default function CustomerHelp() {
     },
     {
       question: "How do I pay for the service?",
-      answer: "You can pay using cash or electronic payment methods. Select your preferred payment method when booking the service."
+      answer: "You can pay using electronic payment methods. Select your preferred payment method when booking the service."
     },
     {
       question: "What if I need to cancel my order?",

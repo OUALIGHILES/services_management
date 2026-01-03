@@ -5,8 +5,9 @@ import {
   insertOrderSchema, insertOrderOfferSchema, insertTransactionSchema,
   insertNotificationSchema, insertMessageSchema, insertRatingSchema,
   insertAdminSettingSchema, insertProductSchema, insertHomeBannerSchema, insertStoreSchema,
+  insertAdminNoteSchema,
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
-  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores
+  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, adminNotes
 } from './schema';
 
 // Create a custom schema for subcategory creation that excludes categoryId since it comes from URL parameter
@@ -223,7 +224,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/orders',
-      input: insertOrderSchema,
+      input: insertOrderSchema.omit({ customerId: true }), // customerId is set by backend
       responses: { 201: z.custom<typeof orders.$inferSelect>() },
     },
     get: {
@@ -236,6 +237,39 @@ export const api = {
       path: '/api/orders/:id',
       input: insertOrderSchema.partial(),
       responses: { 200: z.custom<typeof orders.$inferSelect>() },
+    },
+  },
+  orderOffers: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/order-offers',
+      input: z.object({
+        orderId: z.string().optional(),
+        driverId: z.string().optional(),
+      }).optional(),
+      responses: { 200: z.array(z.custom<typeof orderOffers.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/order-offers',
+      input: insertOrderOfferSchema,
+      responses: { 201: z.custom<typeof orderOffers.$inferSelect>() },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/order-offers/:id',
+      responses: { 200: z.custom<typeof orderOffers.$inferSelect>() },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/order-offers/:id',
+      input: insertOrderOfferSchema.partial(),
+      responses: { 200: z.custom<typeof orderOffers.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/order-offers/:id',
+      responses: { 200: z.void() },
     },
   },
   products: {
@@ -460,6 +494,35 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/home-banners/:id',
+      responses: { 200: z.void() },
+    },
+  },
+  adminNotes: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/admin-notes',
+      responses: { 200: z.array(z.custom<typeof adminNotes.$inferSelect>()) },
+    },
+    listBySubcategory: {
+      method: 'GET' as const,
+      path: '/api/subcategories/:subcategoryId/admin-notes',
+      responses: { 200: z.array(z.custom<typeof adminNotes.$inferSelect>()) },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/admin-notes',
+      input: insertAdminNoteSchema,
+      responses: { 201: z.custom<typeof adminNotes.$inferSelect>() },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/admin-notes/:id',
+      input: insertAdminNoteSchema.partial(),
+      responses: { 200: z.custom<typeof adminNotes.$inferSelect>() },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/admin-notes/:id',
       responses: { 200: z.void() },
     },
   },

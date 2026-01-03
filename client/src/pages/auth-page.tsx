@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
@@ -163,11 +164,10 @@ export default function AuthPage() {
                           <FormItem>
                             <FormLabel className="text-base">Password</FormLabel>
                             <FormControl>
-                              <Input 
-                                type="password" 
-                                placeholder="••••••" 
-                                className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm" 
-                                {...field} 
+                              <PasswordInput
+                                placeholder="••••••"
+                                className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -248,11 +248,10 @@ export default function AuthPage() {
                           <FormItem>
                             <FormLabel className="text-base">Password</FormLabel>
                             <FormControl>
-                              <Input 
-                                type="password" 
-                                placeholder="••••••" 
-                                className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm" 
-                                {...field} 
+                              <PasswordInput
+                                placeholder="••••••"
+                                className="h-12 text-base border-2 border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 rounded-xl shadow-sm"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />

@@ -2,7 +2,7 @@ import { getDb } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
-  permissions, subAdminPermissions, impersonationLogs,
+  permissions, subAdminPermissions, impersonationLogs, adminNotes,
   type User, type InsertUser, type Driver, type InsertDriver,
   type Vehicle, type InsertVehicle, type Zone, type InsertZone,
   type ServiceCategory, type InsertServiceCategory, type Subcategory, type InsertSubcategory, type Service, type InsertService,
@@ -14,7 +14,8 @@ import {
   type Store, type InsertStore,
   type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission,
   type ImpersonationLog, type InsertImpersonationLog,
-  type Rating, type InsertRating
+  type Rating, type InsertRating,
+  type AdminNote, type InsertAdminNote
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -65,6 +66,7 @@ export interface IStorage {
   createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
   updateServiceCategory(id: string, updates: Partial<InsertServiceCategory>): Promise<ServiceCategory | undefined>;
   deleteServiceCategory(id: string): Promise<boolean>;
+  getServiceCategory(id: string): Promise<ServiceCategory | undefined>;
   getAllServiceCategories(): Promise<ServiceCategory[]>;
   createService(service: InsertService): Promise<Service>;
   getAllServices(): Promise<Service[]>;
@@ -92,11 +94,19 @@ export interface IStorage {
   deleteProduct(id: string): Promise<boolean>;
 
   // Order
-  createOrder(order: InsertOrder): Promise<Order>;
+  createOrder(order: InsertOrder, includeAdminNotes?: boolean): Promise<Order>;
   getOrder(id: string): Promise<Order | undefined>;
   getAllOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
   assignDriver(orderId: string, driverId: string): Promise<Order>;
+
+  // Order Offers
+  createOrderOffer(offer: InsertOrderOffer): Promise<OrderOffer>;
+  getOrderOffer(id: string): Promise<OrderOffer | undefined>;
+  getOrderOffersByOrder(orderId: string): Promise<OrderOffer[]>;
+  getOrderOffersByDriver(driverId: string): Promise<OrderOffer[]>;
+  updateOrderOffer(id: string, updates: Partial<InsertOrderOffer>): Promise<OrderOffer | undefined>;
+  deleteOrderOffer(id: string): Promise<boolean>;
 
   // Notification
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -121,6 +131,7 @@ export interface IStorage {
 
   // Admin Settings
   getAdminSetting(key: string): Promise<AdminSetting | undefined>;
+  setAdminSetting(key: string, value: any): Promise<AdminSetting>;
 
   // Ratings
   createRating(rating: InsertRating): Promise<Rating>;
@@ -132,6 +143,13 @@ export interface IStorage {
   // Impersonation Logs
   createImpersonationLog(log: InsertImpersonationLog): Promise<ImpersonationLog>;
   getImpersonationLogs(adminId?: string, targetUserId?: string): Promise<ImpersonationLog[]>;
+
+  // Admin Notes
+  getAllAdminNotes(): Promise<AdminNote[]>;
+  getAdminNotesBySubcategory(subcategoryId: string): Promise<AdminNote[]>;
+  createAdminNote(note: InsertAdminNote): Promise<AdminNote>;
+  updateAdminNote(id: string, updates: Partial<InsertAdminNote>): Promise<AdminNote | undefined>;
+  deleteAdminNote(id: string): Promise<boolean>;
 }
 
 // Utility function to normalize language objects to ensure consistent structure
@@ -582,6 +600,17 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getServiceCategory(id: string): Promise<ServiceCategory | undefined> {
+    try {
+      const db = getDb();
+      const [category] = await db.select().from(serviceCategories).where(eq(serviceCategories.id, id));
+      return category;
+    } catch (error) {
+      console.error("Database error in getServiceCategory:", error);
+      return undefined;
+    }
+  }
+
   async getAllServiceCategories(): Promise<ServiceCategory[]> {
     try {
       const db = getDb();
@@ -796,11 +825,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Order
-  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+  async createOrder(insertOrder: InsertOrder, includeAdminNotes: boolean = false): Promise<Order> {
     try {
       const db = getDb();
       const requestNumber = `REQ-${Date.now()}-${Math.floor(Math.random()*1000)}`;
-      const [order] = await db.insert(orders).values({ ...insertOrder, requestNumber }).returning();
+
+      // If includeAdminNotes is true and subService (subcategory) is provided, fetch admin notes
+      let adminNotesContent = null;
+      if (includeAdminNotes && insertOrder.subService) {
+        const notes = await this.getAdminNotesBySubcategory(insertOrder.subService);
+        if (notes && notes.length > 0) {
+          // Combine all active admin notes into a single string
+          adminNotesContent = notes
+            .filter(note => note.isActive)
+            .sort((a, b) => (b.priority || 0) - (a.priority || 0)) // Sort by priority (highest first)
+            .map(note => {
+              const title = note.titleEn || note.titleAr || note.titleUr || 'Untitled Note';
+              const content = note.contentEn || note.contentAr || note.contentUr || 'No content';
+              return `${title}: ${content}`;
+            })
+            .join('\n\n'); // Separate notes with double newlines
+        }
+      }
+
+      const [order] = await db.insert(orders).values({
+        ...insertOrder,
+        requestNumber,
+        adminNotesDisplayed: adminNotesContent || insertOrder.adminNotesDisplayed
+      }).returning();
       return order;
     } catch (error) {
       console.error("Database error in createOrder:", error);
@@ -854,6 +906,74 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Database error in assignDriver:", error);
       throw error;
+    }
+  }
+
+  // Order Offers
+  async createOrderOffer(insertOffer: InsertOrderOffer): Promise<OrderOffer> {
+    try {
+      const db = getDb();
+      const [offer] = await db.insert(orderOffers).values(insertOffer).returning();
+      return offer;
+    } catch (error) {
+      console.error("Database error in createOrderOffer:", error);
+      throw error;
+    }
+  }
+
+  async getOrderOffer(id: string): Promise<OrderOffer | undefined> {
+    try {
+      const db = getDb();
+      const [offer] = await db.select().from(orderOffers).where(eq(orderOffers.id, id));
+      return offer;
+    } catch (error) {
+      console.error("Database error in getOrderOffer:", error);
+      return undefined;
+    }
+  }
+
+  async getOrderOffersByOrder(orderId: string): Promise<OrderOffer[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(orderOffers).where(eq(orderOffers.orderId, orderId));
+    } catch (error) {
+      console.error("Database error in getOrderOffersByOrder:", error);
+      return [];
+    }
+  }
+
+  async getOrderOffersByDriver(driverId: string): Promise<OrderOffer[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(orderOffers).where(eq(orderOffers.driverId, driverId));
+    } catch (error) {
+      console.error("Database error in getOrderOffersByDriver:", error);
+      return [];
+    }
+  }
+
+  async updateOrderOffer(id: string, updates: Partial<InsertOrderOffer>): Promise<OrderOffer | undefined> {
+    try {
+      const db = getDb();
+      const [updatedOffer] = await db.update(orderOffers)
+        .set(updates)
+        .where(eq(orderOffers.id, id))
+        .returning();
+      return updatedOffer;
+    } catch (error) {
+      console.error("Database error in updateOrderOffer:", error);
+      return undefined;
+    }
+  }
+
+  async deleteOrderOffer(id: string): Promise<boolean> {
+    try {
+      const db = getDb();
+      const result = await db.delete(orderOffers).where(eq(orderOffers.id, id));
+      return result.rowsAffected > 0;
+    } catch (error) {
+      console.error("Database error in deleteOrderOffer:", error);
+      return false;
     }
   }
 
@@ -1090,6 +1210,32 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async setAdminSetting(key: string, value: any): Promise<AdminSetting> {
+    try {
+      const db = getDb();
+      // Check if the setting already exists
+      const existingSetting = await this.getAdminSetting(key);
+
+      if (existingSetting) {
+        // Update the existing setting
+        const [updatedSetting] = await db.update(adminSettings)
+          .set({ value, updatedAt: new Date() })
+          .where(eq(adminSettings.key, key))
+          .returning();
+        return updatedSetting;
+      } else {
+        // Create a new setting
+        const [newSetting] = await db.insert(adminSettings)
+          .values({ key, value })
+          .returning();
+        return newSetting;
+      }
+    } catch (error) {
+      console.error("Database error in setAdminSetting:", error);
+      throw error;
+    }
+  }
+
   // Ratings
   async createRating(insertRating: InsertRating): Promise<Rating> {
     try {
@@ -1212,6 +1358,63 @@ export class DatabaseStorage implements IStorage {
     } catch (error: any) {
       console.error("Database error in getImpersonationLogs:", error);
       return [];
+    }
+  }
+
+  // Admin Notes
+  async getAllAdminNotes(): Promise<AdminNote[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(adminNotes);
+    } catch (error) {
+      console.error("Database error in getAllAdminNotes:", error);
+      return [];
+    }
+  }
+
+  async getAdminNotesBySubcategory(subcategoryId: string): Promise<AdminNote[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(adminNotes).where(eq(adminNotes.subcategoryId, subcategoryId));
+    } catch (error) {
+      console.error("Database error in getAdminNotesBySubcategory:", error);
+      return [];
+    }
+  }
+
+  async createAdminNote(insertNote: InsertAdminNote): Promise<AdminNote> {
+    try {
+      const db = getDb();
+      const [note] = await db.insert(adminNotes).values(insertNote).returning();
+      return note as AdminNote;
+    } catch (error) {
+      console.error("Database error in createAdminNote:", error);
+      throw error;
+    }
+  }
+
+  async updateAdminNote(id: string, updates: Partial<InsertAdminNote>): Promise<AdminNote | undefined> {
+    try {
+      const db = getDb();
+      const [updatedNote] = await db.update(adminNotes)
+        .set(updates)
+        .where(eq(adminNotes.id, id))
+        .returning();
+      return updatedNote as AdminNote | undefined;
+    } catch (error) {
+      console.error("Database error in updateAdminNote:", error);
+      return undefined;
+    }
+  }
+
+  async deleteAdminNote(id: string): Promise<boolean> {
+    try {
+      const db = getDb();
+      const result = await db.delete(adminNotes).where(eq(adminNotes.id, id));
+      return result.rowsAffected > 0;
+    } catch (error) {
+      console.error("Database error in deleteAdminNote:", error);
+      return false;
     }
   }
 }

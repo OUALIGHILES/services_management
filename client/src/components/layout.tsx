@@ -18,7 +18,8 @@ import {
   Search,
   Store,
   Monitor,
-  CreditCard
+  CreditCard,
+  Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { href: "/admin/vehicle-details", label: "Vehicle Details", icon: Truck },
         { href: "/admin/home-banner", label: "Home Banner", icon: Monitor },
         { href: "/admin/account-control", label: "Account Control", icon: CreditCard },
+        { href: "/admin/driver-wallet", label: "Driver Wallets", icon: Wallet },
         ...common
       ];
     }
@@ -68,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       return [
         { href: "/driver", label: "Dashboard", icon: LayoutDashboard },
         { href: "/driver/orders", label: "My Orders", icon: Package },
+        { href: "/driver/wallet", label: "Wallet", icon: DollarSign },
         ...common
       ];
     }

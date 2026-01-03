@@ -1,12 +1,20 @@
 import { useRoute } from "wouter";
 import { useProduct } from "@/hooks/use-products";
+import { useCreateOrder } from "@/hooks/use-orders";
+import { useToast } from "@/hooks/use-toast";
+import { useServiceCategory } from "@/hooks/use-service-categories";
+import { useServicesByCategory } from "@/hooks/use-services";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Package, ShoppingCart, Heart, Share2, Camera, CreditCard, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, MapPin, Package, ShoppingCart, Heart, Share2, Camera, CreditCard, X, ChevronLeft, ChevronRight, Truck, DollarSign, CheckCircle, AlertCircle, Save } from "lucide-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import KsaMap from "@/components/KsaMap";
+import AdminNotesDisplay from "@/components/AdminNotesDisplay";
+import CustomerNotesInput from "@/components/CustomerNotesInput";
 
 export default function ProductDetails() {
   const [match1, params1] = useRoute("/customer/products/:categoryId/:productId");
@@ -15,16 +23,27 @@ export default function ProductDetails() {
   // Determine which route matched and extract parameters accordingly
   const params = match1 ? params1 : params2;
   const productId = params?.productId || '';
+  const subcategoryId = params?.subcategoryId || '';
 
   console.log('ProductDetails params:', params);
   console.log('Product ID being fetched:', productId);
+  console.log('Subcategory ID:', subcategoryId);
   console.log('Route matches - match1:', match1, 'match2:', match2);
 
+  const { toast } = useToast();
+  const { user } = useAuth();
   const { data: product, isLoading } = useProduct(productId);
+  const { data: category, isLoading: isCategoryLoading } = useServiceCategory(product?.categoryId || '');
+  const { data: services = [], isLoading: isServicesLoading } = useServicesByCategory(product?.categoryId || '');
+  const primaryService = services[0]; // Use the first service associated with this category
   const [selectedImage, setSelectedImage] = useState(0);
-  const [quantity, setQuantity] = useState(1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+  const [locationImage, setLocationImage] = useState<string | null>(null);
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [bookingStep, setBookingStep] = useState<'details' | 'confirmation'>('details');
+  const { mutate: createOrder, isPending: isCreatingOrder } = useCreateOrder();
 
   if (isLoading) {
     return (
@@ -46,14 +65,246 @@ export default function ProductDetails() {
     );
   }
 
-  const addToCart = () => {
-    // Navigate to booking page with product information
-    window.location.hash = `#/customer/book-product/${product.id}`;
+  const handleLocationSelect = (location: { lat: number; lng: number; address?: string }) => {
+    setSelectedLocation(location);
   };
 
-  const navigateToBooking = () => {
-    window.location.hash = `#/customer/book-product/${product.id}`;
+  const handleImageUpload = (image: string) => {
+    setLocationImage(image);
   };
+
+  const handleBookingNow = () => {
+    if (!selectedLocation) {
+      alert('Please select a location on the map');
+      return;
+    }
+
+    if (isServicesLoading) {
+      toast({ title: "Loading", description: "Please wait while we load service information." });
+      return;
+    }
+
+    if (!primaryService?.id) {
+      toast({
+        title: "Error",
+        description: "Service information not available. Cannot proceed with booking.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setBookingStep('confirmation');
+  };
+
+  const handleConfirmBooking = (bookingType: 'auto_accept' | 'offer_based') => {
+    if (!selectedLocation) {
+      alert('Please select a location on the map');
+      return;
+    }
+
+    // Check if we have a valid service ID
+    if (!primaryService?.id) {
+      toast({
+        title: "Error",
+        description: "Service information not available. Cannot create order.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if user is authenticated
+    if (!user?.id) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create an order.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Prepare order data (customerId is set by backend from authenticated user)
+    const orderData: any = {
+      serviceId: primaryService.id, // Use the actual service ID
+      status: bookingType === 'auto_accept' ? 'pending' : 'new', // If auto_accept, set to pending; if offer_based, set to new
+      location: {
+        pickup: {
+          lat: selectedLocation.lat,
+          lng: selectedLocation.lng,
+          address: selectedLocation.address || `Lat: ${selectedLocation.lat}, Lng: ${selectedLocation.lng}`
+        },
+        dropoff: {
+          lat: selectedLocation.lat,
+          lng: selectedLocation.lng,
+          address: selectedLocation.address || `Lat: ${selectedLocation.lat}, Lng: ${selectedLocation.lng}`
+        }
+      },
+      notes: customerNotes || undefined,
+      pricingOption: bookingType === 'auto_accept' ? 'auto_accept' : 'choose_offer',
+      bookingType: bookingType, // New field
+      customerNotes: customerNotes || undefined, // New field
+      // Include subService only if it exists
+      ...(product.subcategoryId && { subService: product.subcategoryId }),
+      // Include locationImage only if it exists
+      ...(locationImage && { locationImage: locationImage }),
+      // adminNotesDisplayed would be populated on the backend based on subcategory
+    };
+
+    createOrder(orderData, {
+      onSuccess: (response) => {
+        toast({ title: "Order Created", description: "Your request has been submitted." });
+        // Navigate to appropriate page based on booking type
+        if (bookingType === 'auto_accept') {
+          // Navigate to orders page
+          window.location.hash = '#/customer/orders';
+        } else {
+          // Navigate to offers page to see offers from drivers
+          window.location.hash = '#/customer/offers';
+        }
+      },
+      onError: (error) => {
+        console.error('Error creating order:', error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      }
+    });
+  };
+
+  if (bookingStep === 'confirmation') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Button
+          variant="ghost"
+          className="mb-6 pl-0 hover:bg-transparent hover:text-primary"
+          onClick={() => setBookingStep('details')}
+        >
+          <ChevronLeft className="mr-2 w-4 h-4" /> Back to Details
+        </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-muted rounded-lg w-16 h-16 flex items-center justify-center">
+                    {product.images && product.images.length > 0 ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : (
+                      <Package className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-bold">{product.name}</h3>
+                    <p className="text-lg font-bold text-primary">${parseFloat(product.price).toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground">Location</h4>
+                    <p className="font-medium">
+                      {selectedLocation?.address ||
+                        `Lat: ${selectedLocation?.lat.toFixed(6)}, Lng: ${selectedLocation?.lng.toFixed(6)}`}
+                    </p>
+                  </div>
+
+                  {customerNotes && (
+                    <div>
+                      <h4 className="font-medium text-sm text-muted-foreground">Customer Notes</h4>
+                      <p className="font-medium">{customerNotes}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">Expected Price</h4>
+                    <p className="text-xl font-bold text-primary">
+                      ${parseFloat(product.price).toFixed(2)} + Delivery Fee
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Final price confirmed when driver accepts.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Booking Options */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Booking Options</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <Button
+                    size="lg"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('auto_accept')}
+                    disabled={isCreatingOrder || isServicesLoading}
+                  >
+                    {isCreatingOrder ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : isServicesLoading ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Confirm & Send to Driver</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent directly to available drivers
+                        </p>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="w-full flex flex-col items-center justify-center py-6"
+                    onClick={() => handleConfirmBooking('offer_based')}
+                    disabled={isCreatingOrder || isServicesLoading}
+                  >
+                    {isCreatingOrder ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : isServicesLoading ? (
+                      <>
+                        <Save className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign className="w-8 h-8 mb-2" />
+                        <span className="font-bold text-lg">Choose Offer</span>
+                        <p className="text-sm mt-1 text-muted-foreground">
+                          Order sent to drivers for bidding
+                        </p>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -178,7 +429,9 @@ export default function ProductDetails() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="font-semibold text-lg">Category</h3>
-                <p className="text-muted-foreground mt-1">{product.categoryId}</p>
+                <p className="text-muted-foreground mt-1">
+                  {isCategoryLoading ? 'Loading...' : category?.name?.en || product.categoryId}
+                </p>
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Subcategory</h3>
@@ -218,16 +471,6 @@ export default function ProductDetails() {
               </div>
             )}
           </div>
-
-          <div className="flex items-center gap-4">
-            <Button size="lg" className="flex-1" onClick={navigateToBooking}>
-              <ShoppingCart className="w-5 h-5 mr-2" />
-              Enter Booking Data
-            </Button>
-            <Button variant="outline" size="lg">
-              <Share2 className="w-5 h-5" />
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -235,65 +478,64 @@ export default function ProductDetails() {
       <div className="mt-16">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Enter Booking Data</CardTitle>
+            <CardTitle className="text-2xl">Enter Booking Details</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">📍 Location Selection</label>
-                  <div className="bg-muted rounded-lg p-4 flex items-center justify-center h-40">
-                    <MapPin className="w-8 h-8 text-muted-foreground" />
-                    <p className="ml-2 text-muted-foreground">Select location on map</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">📝 Additional Notes</label>
-                  <textarea 
-                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary focus:outline-none"
-                    rows={3}
-                    placeholder="Example: There's a dog at home"
-                  ></textarea>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">🖼️ Attach Photos</label>
-                  <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:bg-muted transition-colors">
-                    <Camera className="w-8 h-8 mx-auto text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">Click to upload photos</p>
-                    <p className="text-xs text-muted-foreground">For hard-to-describe locations</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">💳 Payment Method</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline">
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Cash
-                    </Button>
-                    <Button variant="outline">
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Electronic
-                    </Button>
-                  </div>
-                </div>
-              </div>
+          <CardContent className="space-y-8">
+            {/* KSA Map Integration */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">📍 Location Selection</h3>
+              <KsaMap
+                onLocationSelect={handleLocationSelect}
+                onImageUpload={handleImageUpload}
+                initialLocation={selectedLocation || undefined}
+                initialImage={locationImage || undefined}
+              />
             </div>
 
-            <div className="mt-6 flex gap-3">
-              <Button size="lg" className="flex-1" onClick={navigateToBooking}>
-                💰 Get Price Quotes
-              </Button>
-              <Button size="lg" className="flex-1" variant="secondary" onClick={navigateToBooking}>
-                ✅ Book Now
-              </Button>
+            {/* Admin Notes Display */}
+            {subcategoryId && (
+              <div>
+                <h3 className="text-lg font-medium mb-4">📋 Admin Notes</h3>
+                <AdminNotesDisplay subcategoryId={subcategoryId} />
+              </div>
+            )}
+
+            {/* Customer Notes */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">📝 Additional Notes</h3>
+              <CustomerNotesInput
+                value={customerNotes}
+                onChange={setCustomerNotes}
+                placeholder="Example: There's a dog at home, gate code is 1234, etc."
+              />
             </div>
           </CardContent>
         </Card>
+
+        {/* Booking Button - appears after location is selected */}
+        <div className="mt-6 flex items-center gap-4">
+          <Button
+            size="lg"
+            className="flex-1"
+            onClick={handleBookingNow}
+            disabled={!selectedLocation || isServicesLoading}
+          >
+            {isServicesLoading ? (
+              <>
+                <Save className="w-5 h-5 mr-2 animate-spin" />
+                Loading Services...
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-5 h-5 mr-2" />
+                BOOKING NOW
+              </>
+            )}
+          </Button>
+          <Button variant="outline" size="lg">
+            <Share2 className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Lightbox Modal */}

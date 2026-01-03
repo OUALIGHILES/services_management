@@ -1,10 +1,13 @@
 import { useOrders, useUpdateOrder } from "@/hooks/use-orders";
+import { useOrderOffers, useCreateOrderOffer, useUpdateOrderOffer } from "@/hooks/use-order-offers";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { MapPin, Navigation, CheckCircle, DollarSign, Truck, Package, Clock } from "lucide-react";
+import { useState } from "react";
 
 // Define types for order status updates
 type OrderStatus = 'new' | 'pending' | 'in_progress' | 'picked_up' | 'delivered' | 'cancelled';
@@ -12,6 +15,13 @@ type OrderStatus = 'new' | 'pending' | 'in_progress' | 'picked_up' | 'delivered'
 export default function DriverOrders() {
   const { user } = useAuth();
   const driverId = user?.driverProfile?.id;
+
+  // State for handling offers and editing
+  const [editingOffer, setEditingOffer] = useState<{orderId: string, price: string} | null>(null);
+  const [editPrice, setEditPrice] = useState<string>("");
+
+  const createOrderOffer = useCreateOrderOffer();
+  const updateOrderOffer = useUpdateOrderOffer();
 
   // Fetch orders by status separately to ensure compatibility
   const { data: allDriverOrders, isLoading: loadingAll } = useOrders({
@@ -57,6 +67,52 @@ export default function DriverOrders() {
 
   const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
     updateOrder.mutate({ id: orderId, status: newStatus });
+  };
+
+  // Function to handle accepting an order (for auto_accept orders)
+  const handleAcceptOrder = (orderId: string) => {
+    updateOrder.mutate({ id: orderId, status: "pending", driverId });
+  };
+
+  // Function to handle rejecting an order
+  const handleRejectOrder = (orderId: string) => {
+    // For orders with pricingOption "choose_offer", we need to create an offer with accepted=false
+    // For orders with pricingOption "auto_accept", we just don't accept it
+    // In both cases, we can just not do anything for rejection
+    console.log("Order rejected:", orderId);
+  };
+
+  // Function to start editing an offer price
+  const startEditOffer = (orderId: string, currentPrice: string) => {
+    setEditingOffer({ orderId, price: currentPrice });
+    setEditPrice(currentPrice);
+  };
+
+  // Function to submit an offer (for choose_offer orders)
+  const submitOffer = (orderId: string, price: string) => {
+    createOrderOffer.mutate({
+      orderId,
+      price,
+      accepted: false // Initially not accepted, customer will accept it
+    });
+  };
+
+  // Function to edit an existing offer
+  const editOffer = (orderId: string, newPrice: string) => {
+    // Find existing offer for this order and driver
+    // For now, we'll just create a new offer with the updated price
+    // In a real implementation, we'd want to update the existing offer
+    createOrderOffer.mutate({
+      orderId,
+      price: newPrice,
+      accepted: false
+    });
+  };
+
+  // Function to cancel editing
+  const cancelEdit = () => {
+    setEditingOffer(null);
+    setEditPrice("");
   };
 
   const handlePickUp = (orderId: string) => {
@@ -173,12 +229,73 @@ export default function DriverOrders() {
                     <p className="text-sm">{order.notes || "No notes provided"}</p>
                   </div>
 
-                  <Button
-                    className="w-full"
-                    onClick={() => handleUpdateStatus(order.id, "in_progress")}
-                  >
-                    Start Order
-                  </Button>
+                  {order.pricingOption === "auto_accept" ? (
+                    <div className="flex gap-2">
+                      <Button
+                        className="w-full"
+                        onClick={() => handleAcceptOrder(order.id)}
+                      >
+                        Accept Order
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleRejectOrder(order.id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : (
+                    // For choose_offer orders, show price input and submit button
+                    <div className="space-y-3">
+                      {editingOffer?.orderId === order.id ? (
+                        <div className="space-y-2">
+                          <Input
+                            type="number"
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            placeholder="Enter your price"
+                            className="w-full"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              className="flex-1"
+                              onClick={() => {
+                                editOffer(order.id, editPrice);
+                                cancelEdit();
+                              }}
+                              disabled={!editPrice || parseFloat(editPrice) <= 0}
+                            >
+                              Submit Price
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="flex-1"
+                              onClick={cancelEdit}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Button
+                            className="w-full"
+                            onClick={() => startEditOffer(order.id, "50.00")} // Default price
+                          >
+                            Make Offer
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleRejectOrder(order.id)}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))

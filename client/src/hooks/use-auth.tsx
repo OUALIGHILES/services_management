@@ -4,6 +4,7 @@ import { insertUserSchema } from "@shared/schema";
 type InsertUser = typeof insertUserSchema._type;
 import { User } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@shared/routes";
 
 type AuthContextType = {
   user: User | null;
@@ -21,9 +22,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: user, error, isLoading } = useQuery({
-    queryKey: ["/api/user"],
+    queryKey: [api.auth.me.path],
     queryFn: async () => {
-      const res = await fetch("/api/user", { credentials: "include" });
+      const res = await fetch(api.auth.me.path, { credentials: "include" });
       if (res.status === 401) return null;
       if (!res.ok) throw new Error("Failed to fetch user");
       return await res.json();
@@ -45,11 +46,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await res.json();
     },
     onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
+      queryClient.setQueryData([api.auth.me.path], user);
       toast({ title: "Welcome back!", description: `Logged in as ${user.fullName}` });
     },
     onError: (error: Error) => {
-      toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      // Check if the error message indicates pending approval
+      if (error.message.includes("pending approval")) {
+        toast({
+          title: "Account Pending Approval",
+          description: error.message,
+          variant: "default" // Use default instead of destructive for pending status
+        });
+      } else {
+        toast({ title: "Login failed", description: error.message, variant: "destructive" });
+      }
     },
   });
 
@@ -87,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      queryClient.setQueryData([api.auth.me.path], null);
       toast({ title: "Logged out", description: "See you next time!" });
     },
   });

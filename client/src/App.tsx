@@ -31,6 +31,7 @@ import BookProduct from "@/pages/book-product";
 import DriverDashboard from "@/pages/driver-dashboard";
 import DriverOrders from "@/pages/driver-orders";
 import DriverRegister from "@/pages/driver-register";
+import DriverWallet from "@/pages/driver-wallet";
 
 // Admin Pages
 import Admin from "@/pages/admin";
@@ -57,6 +58,7 @@ import DriverWelcome from "@/pages/driver-welcome";
 import AdminVehicleDetails from "@/pages/admin-vehicle-details";
 import AdminHomeBanner from "@/pages/admin-home-banner";
 import AdminAccountControl from "@/pages/admin-account-control";
+import AdminDriverWallet from "@/pages/admin-driver-wallet";
 
 function ProtectedRoute({ 
   component: Component, 
@@ -165,6 +167,9 @@ function Router() {
       <Route path="/driver/orders">
          <ProtectedRoute component={DriverOrders} allowedRoles={['driver']} />
       </Route>
+      <Route path="/driver/wallet">
+         <ProtectedRoute component={DriverWallet} allowedRoles={['driver']} />
+      </Route>
       <Route path="/driver/register" component={DriverRegister} />
 
       {/* Admin Routes */}
@@ -235,6 +240,9 @@ function Router() {
       </Route>
       <Route path="/admin/account-control">
          <ProtectedRoute component={AdminAccountControl} allowedRoles={['admin', 'subadmin']} />
+      </Route>
+      <Route path="/admin/driver-wallet">
+         <ProtectedRoute component={AdminDriverWallet} allowedRoles={['admin', 'subadmin']} />
       </Route>
 
       <Route component={NotFound} />

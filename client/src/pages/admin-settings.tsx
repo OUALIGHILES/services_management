@@ -309,13 +309,6 @@ const PaymentSettings = () => (
     </CardHeader>
     <CardContent className="space-y-6">
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label htmlFor="cash-payment">Cash Payment</Label>
-            <p className="text-sm text-muted-foreground">Allow customers to pay with cash</p>
-          </div>
-          <Switch id="cash-payment" defaultChecked />
-        </div>
 
         <div className="flex items-center justify-between">
           <div>

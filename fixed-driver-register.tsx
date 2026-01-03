@@ -102,6 +102,9 @@ export default function DriverRegisterPage() {
     },
   });
 
+  // Fetch zones at the top level to maintain hook order
+  const { data: zones, isLoading: zonesLoading, error: zonesError } = useZones();
+
 
   if (user) {
     if (user.role === "admin" || user.role === "subadmin") return <Redirect to="/admin" />;
@@ -486,8 +489,6 @@ export default function DriverRegisterPage() {
 
 
       case 4:
-        const { data: zones, isLoading: zonesLoading, error: zonesError } = useZones();
-
         if (zonesLoading) {
           return (
             <div className="space-y-6">

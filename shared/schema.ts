@@ -32,6 +32,20 @@ export const subAdminPermissions = pgTable("sub_admin_permissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const subAdminZones = pgTable("sub_admin_zones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  zoneId: uuid("zone_id").references(() => zones.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const subAdminServiceCategories = pgTable("sub_admin_service_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  serviceCategoryId: uuid("service_category_id").references(() => serviceCategories.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const vehicles = pgTable("vehicles", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -149,6 +163,27 @@ export const orders = pgTable("orders", {
   location: jsonb("location"), // { pickup: {lat, lng, address}, dropoff: ... }
   notes: text("notes"),
   scheduledFor: timestamp("scheduled_for"),
+  pricingOption: text("pricing_option", { enum: ["auto_accept", "choose_offer"] }),
+  bookingType: text("booking_type", { enum: ["auto_accept", "offer_based"] }),
+  locationImage: text("location_image"),
+  adminNotesDisplayed: text("admin_notes_displayed"),
+  customerNotes: text("customer_notes"),
+  driverEditedPrice: numeric("driver_edited_price"),
+  priceEditStatus: text("price_edit_status", { enum: ["pending", "accepted", "rejected"] }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const adminNotes = pgTable("admin_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subcategoryId: uuid("subcategory_id").references(() => subcategories.id).notNull(),
+  titleEn: text("title_en"),
+  titleAr: text("title_ar"),
+  titleUr: text("title_ur"),
+  contentEn: text("content_en"),
+  contentAr: text("content_ar"),
+  contentUr: text("content_ur"),
+  priority: integer("priority").default(0),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -301,11 +336,12 @@ export const serviceCategoriesRelations = relations(serviceCategories, ({ one, m
   products: many(products),
 }));
 
-export const subcategoriesRelations = relations(subcategories, ({ one }) => ({
+export const subcategoriesRelations = relations(subcategories, ({ one, many }) => ({
   category: one(serviceCategories, {
     fields: [subcategories.categoryId],
     references: [serviceCategories.id],
   }),
+  adminNotes: many(adminNotes),
 }));
 
 export const productsRelations = relations(products, ({ one }) => ({
@@ -392,6 +428,8 @@ export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, cre
 
 export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });
 
+export const insertAdminNoteSchema = createInsertSchema(adminNotes).omit({ id: true, createdAt: true });
+
 // === EXPORTED TYPES ===
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -433,4 +471,6 @@ export type Store = typeof stores.$inferSelect;
 export type InsertStore = z.infer<typeof insertStoreSchema>;
 export type ImpersonationLog = typeof impersonationLogs.$inferSelect;
 export type InsertImpersonationLog = z.infer<typeof insertImpersonationLogSchema>;
+export type AdminNote = typeof adminNotes.$inferSelect;
+export type InsertAdminNote = z.infer<typeof insertAdminNoteSchema>;
 
