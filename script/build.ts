@@ -58,6 +58,11 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
+    // Vercel specific settings
+    target: "node18",
+    banner: {
+      js: "global.process = { env: process.env };"
+    }
   });
 }
 

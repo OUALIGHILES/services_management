@@ -53,6 +53,8 @@ export default async function handler(req, res) {
       return await handleStoreRoutes(req, res, method, url);
     } else if (url.startsWith('/api/impersonate')) {
       return await handleImpersonationRoutes(req, res, method, url);
+    } else if (url.startsWith('/api/help')) {
+      return await handleHelpCenterRoutes(req, res, method, url);
     } else {
       res.status(404).json({ error: 'API endpoint not found' });
     }
@@ -418,7 +420,7 @@ async function handleImageRoutes(req, res, method, url) {
         if (err) {
           return res.status(400).json({ message: err.message });
         }
-        
+
         if (!req.file) {
           return res.status(400).json({ message: "No image file provided" });
         }
@@ -442,6 +444,38 @@ async function handleImageRoutes(req, res, method, url) {
         } catch (error) {
           console.error("Product image upload error:", error);
           res.status(500).json({ message: "Failed to upload product image" });
+        }
+      });
+    } else if (url.includes('/category')) {
+      // Handle category image upload
+      return await upload.single('image')(req, res, async (err) => {
+        if (err) {
+          return res.status(400).json({ message: err.message });
+        }
+
+        if (!req.file) {
+          return res.status(400).json({ message: "No image file provided" });
+        }
+
+        try {
+          const uploadResult = await imageStorage.uploadImage(
+            req.file.buffer,
+            req.file.originalname,
+            'categories'
+          );
+
+          if (!uploadResult.success) {
+            return res.status(500).json({ message: `Failed to upload image: ${uploadResult.error}` });
+          }
+
+          res.json({
+            success: true,
+            url: uploadResult.url,
+            fileName: uploadResult.fileName
+          });
+        } catch (error) {
+          console.error("Category image upload error:", error);
+          res.status(500).json({ message: "Failed to upload category image" });
         }
       });
     }
@@ -636,6 +670,163 @@ async function handleImpersonationRoutes(req, res, method, url) {
       break;
     default:
       res.status(405).json({ error: 'Method not allowed' });
+  }
+}
+
+// Help Center routes handler
+async function handleHelpCenterRoutes(req, res, method, url) {
+  // Extract resource type and ID from URL
+  const pathParts = url.split('/').filter(part => part); // Remove empty parts
+  const resourceType = pathParts[3]; // 'tickets' or 'articles'
+  const resourceId = pathParts[4]; // ID of the specific resource
+  const action = pathParts[5]; // Additional action like 'publish'
+
+  // Check if user is admin or subadmin for help center access
+  if (!isAdminOrSubAdmin(req)) {
+    return res.status(403).json({ message: "Access denied. Admin or subadmin required." });
+  }
+
+  switch (resourceType) {
+    case 'tickets':
+      switch (method) {
+        case 'GET':
+          if (resourceId) {
+            // Get specific ticket
+            const ticket = await storage.getHelpTicket(resourceId);
+            if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+            return res.json(ticket);
+          } else {
+            // Get all tickets
+            const tickets = await storage.getAllHelpTickets();
+            return res.json(tickets);
+          }
+        case 'POST':
+          // Create a new ticket
+          try {
+            const input = api.help.tickets.create.input.parse(req.body);
+            const ticket = await storage.createHelpTicket(input);
+            return res.status(201).json(ticket);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        case 'PATCH':
+          if (!resourceId) return res.status(400).json({ message: "Ticket ID is required" });
+          try {
+            const input = api.help.tickets.update.input.parse(req.body);
+            const updatedTicket = await storage.updateHelpTicket(resourceId, input);
+            if (!updatedTicket) return res.status(404).json({ message: "Ticket not found" });
+            return res.json(updatedTicket);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        default:
+          res.status(405).json({ error: 'Method not allowed' });
+      }
+      break;
+    case 'articles':
+      switch (method) {
+        case 'GET':
+          if (resourceId) {
+            // Get specific article
+            const article = await storage.getHelpArticle(resourceId);
+            if (!article) return res.status(404).json({ message: "Article not found" });
+            return res.json(article);
+          } else {
+            // Get all articles
+            const articles = await storage.getAllHelpArticles();
+            return res.json(articles);
+          }
+        case 'POST':
+          // Create a new article
+          try {
+            const input = api.help.articles.create.input.parse(req.body);
+            const article = await storage.createHelpArticle(input);
+            return res.status(201).json(article);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        case 'PATCH':
+          if (!resourceId) return res.status(400).json({ message: "Article ID is required" });
+          if (action === 'publish') {
+            // Publish the article
+            try {
+              const updatedArticle = await storage.publishHelpArticle(resourceId);
+              if (!updatedArticle) return res.status(404).json({ message: "Article not found" });
+              return res.json(updatedArticle);
+            } catch (error) {
+              console.error("Error publishing article:", error);
+              res.status(500).json({ message: "Failed to publish article" });
+            }
+          } else {
+            // Update the article
+            try {
+              const input = api.help.articles.update.input.parse(req.body);
+              const updatedArticle = await storage.updateHelpArticle(resourceId, input);
+              if (!updatedArticle) return res.status(404).json({ message: "Article not found" });
+              return res.json(updatedArticle);
+            } catch (err) {
+              if (err instanceof z.ZodError) {
+                return res.status(400).json({ message: err.errors[0].message });
+              }
+              throw err;
+            }
+          }
+        default:
+          res.status(405).json({ error: 'Method not allowed' });
+      }
+      break;
+    case 'messages':
+      switch (method) {
+        case 'GET':
+          if (resourceId) {
+            // Get messages for a specific ticket
+            const messages = await storage.getHelpMessagesByTicket(resourceId);
+            return res.json(messages);
+          } else {
+            // Get all messages (admin only)
+            const messages = await storage.getAllHelpMessages();
+            return res.json(messages);
+          }
+        case 'POST':
+          // Create a new message
+          try {
+            const input = api.help.messages.create.input.parse(req.body);
+            const message = await storage.createHelpMessage(input);
+            return res.status(201).json(message);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        case 'PATCH':
+          if (!resourceId) return res.status(400).json({ message: "Message ID is required" });
+          try {
+            const input = api.help.messages.update.input.parse(req.body);
+            const updatedMessage = await storage.updateHelpMessage(resourceId, input);
+            if (!updatedMessage) return res.status(404).json({ message: "Message not found" });
+            return res.json(updatedMessage);
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              return res.status(400).json({ message: err.errors[0].message });
+            }
+            throw err;
+          }
+        default:
+          res.status(405).json({ error: 'Method not allowed' });
+      }
+      break;
+    default:
+      res.status(404).json({ error: 'Resource not found' });
   }
 }
 

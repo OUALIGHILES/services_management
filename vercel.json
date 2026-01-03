@@ -2,26 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
+      "src": "server/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**", "client/**", "server/**", "shared/**", "script/**", "scripts/**"],
-        "excludeFiles": ["node_modules/**", ".git/**"]
+        "includeFiles": ["dist/**", "server/**", "shared/**", "attached_assets/**"],
+        "excludeFiles": ["node_modules/**", ".git/**", "client/**", "scripts/**", "script/**", "*.md", "*.sql", ".env*"]
       }
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/server.js"
-    },
-    {
       "src": "/(.*)",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate"
-      },
-      "dest": "/dist/public/index.html"
+      "dest": "/server/index.ts"
     }
-  ],
-  "outputDirectory": "dist/public"
+  ]
 }

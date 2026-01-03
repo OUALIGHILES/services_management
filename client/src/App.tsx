@@ -114,14 +114,11 @@ function Router() {
       <Route path="/customer/services/:categoryId/subcategories">
          <ProtectedRoute component={CustomerSubcategories} allowedRoles={['customer']} />
       </Route>
-      <Route path="/customer/products/:categoryId/:subcategoryId/:productId">
-         <ProtectedRoute component={ProductDetails} allowedRoles={['customer']} />
-      </Route>
-      <Route path="/customer/products/:categoryId/:productId">
-         <ProtectedRoute component={ProductDetails} allowedRoles={['customer']} />
-      </Route>
       <Route path="/customer/products/:categoryId/:subcategoryId?">
          <ProtectedRoute component={CustomerProducts} allowedRoles={['customer']} />
+      </Route>
+      <Route path="/customer/products/:categoryId/:subcategoryId?/:productId">
+         <ProtectedRoute component={ProductDetails} allowedRoles={['customer']} />
       </Route>
       <Route path="/customer/book/:serviceId?">
          <ProtectedRoute component={BookService} allowedRoles={['customer']} />

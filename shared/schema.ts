@@ -99,6 +99,7 @@ export const serviceCategories = pgTable("service_categories", {
   name: jsonb("name").notNull(), // {en, ar, ur}
   description: jsonb("description"),
   active: boolean("active").default(true),
+  picture: text("picture"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -283,6 +284,44 @@ export const homeBanners = pgTable("home_banners", {
   modifiedAt: timestamp("modified_at").defaultNow(),
 });
 
+export const helpTickets = pgTable("help_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subject: text("subject").notNull(),
+  category: text("category").notNull(),
+  priority: text("priority", { enum: ["low", "medium", "high"] }).default("medium").notNull(),
+  status: text("status", { enum: ["open", "in-progress", "resolved"] }).default("open").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  description: text("description").notNull(),
+  assignedTo: uuid("assigned_to").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const helpArticles = pgTable("help_articles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull(),
+  views: integer("views").default(0),
+  status: text("status", { enum: ["draft", "published", "archived"] }).default("draft").notNull(),
+  authorId: uuid("author_id").references(() => users.id).notNull(),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const helpMessages = pgTable("help_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ticketId: uuid("ticket_id").references(() => helpTickets.id).notNull(),
+  senderId: uuid("sender_id").references(() => users.id).notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 
 // === RELATIONS ===
 
@@ -293,6 +332,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   orders: many(orders, { relationName: "customerOrders" }),
   subAdminPermissions: many(subAdminPermissions),
+  helpTickets: many(helpTickets),
+  helpArticles: many(helpArticles),
 }));
 
 export const permissionsRelations = relations(permissions, ({ many }) => ({
@@ -394,6 +435,31 @@ export const impersonationLogsRelations = relations(impersonationLogs, ({ one })
   }),
 }));
 
+export const helpTicketsRelations = relations(helpTickets, ({ one }) => ({
+  assignedTo: one(users, {
+    fields: [helpTickets.assignedTo],
+    references: [users.id],
+  }),
+}));
+
+export const helpArticlesRelations = relations(helpArticles, ({ one }) => ({
+  author: one(users, {
+    fields: [helpArticles.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const helpMessagesRelations = relations(helpMessages, ({ one }) => ({
+  ticket: one(helpTickets, {
+    fields: [helpMessages.ticketId],
+    references: [helpTickets.id],
+  }),
+  sender: one(users, {
+    fields: [helpMessages.senderId],
+    references: [users.id],
+  }),
+}));
+
 
 // === INSERT SCHEMAS ===
 
@@ -427,6 +493,14 @@ export const insertHomeBannerSchema = createInsertSchema(homeBanners, {
 export const insertStoreSchema = createInsertSchema(stores).omit({ id: true, createdAt: true, modifiedAt: true });
 
 export const insertImpersonationLogSchema = createInsertSchema(impersonationLogs).omit({ id: true, createdAt: true });
+export const insertHelpTicketSchema = createInsertSchema(helpTickets).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHelpArticleSchema = createInsertSchema(helpArticles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHelpMessageSchema = createInsertSchema(helpMessages).omit({ id: true, createdAt: true });
+
+// Create select schemas for API responses (include all fields for select operations)
+export const selectHelpTicketSchema = createInsertSchema(helpTickets); // This will include id, createdAt, updatedAt
+export const selectHelpArticleSchema = createInsertSchema(helpArticles); // This will include id, createdAt, updatedAt
+export const selectHelpMessageSchema = createInsertSchema(helpMessages); // This will include id, createdAt
 
 export const insertAdminNoteSchema = createInsertSchema(adminNotes).omit({ id: true, createdAt: true });
 
@@ -473,4 +547,10 @@ export type ImpersonationLog = typeof impersonationLogs.$inferSelect;
 export type InsertImpersonationLog = z.infer<typeof insertImpersonationLogSchema>;
 export type AdminNote = typeof adminNotes.$inferSelect;
 export type InsertAdminNote = z.infer<typeof insertAdminNoteSchema>;
+export type HelpTicket = typeof helpTickets.$inferSelect;
+export type InsertHelpTicket = z.infer<typeof insertHelpTicketSchema>;
+export type HelpArticle = typeof helpArticles.$inferSelect;
+export type InsertHelpArticle = z.infer<typeof insertHelpArticleSchema>;
+export type HelpMessage = typeof helpMessages.$inferSelect;
+export type InsertHelpMessage = z.infer<typeof insertHelpMessageSchema>;
 

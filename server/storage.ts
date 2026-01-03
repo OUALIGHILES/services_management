@@ -2,7 +2,7 @@ import { getDb } from "./db";
 import {
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
   orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, driverDocuments, stores,
-  permissions, subAdminPermissions, impersonationLogs, adminNotes,
+  permissions, subAdminPermissions, impersonationLogs, adminNotes, helpTickets, helpArticles,
   type User, type InsertUser, type Driver, type InsertDriver,
   type Vehicle, type InsertVehicle, type Zone, type InsertZone,
   type ServiceCategory, type InsertServiceCategory, type Subcategory, type InsertSubcategory, type Service, type InsertService,
@@ -15,9 +15,12 @@ import {
   type Permission, type InsertPermission, type SubAdminPermission, type InsertSubAdminPermission,
   type ImpersonationLog, type InsertImpersonationLog,
   type Rating, type InsertRating,
-  type AdminNote, type InsertAdminNote
+  type AdminNote, type InsertAdminNote,
+  type HelpTicket, type InsertHelpTicket,
+  type HelpArticle, type InsertHelpArticle
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { NotificationService } from "./notifications";
 
 export interface IStorage {
   // User
@@ -150,6 +153,21 @@ export interface IStorage {
   createAdminNote(note: InsertAdminNote): Promise<AdminNote>;
   updateAdminNote(id: string, updates: Partial<InsertAdminNote>): Promise<AdminNote | undefined>;
   deleteAdminNote(id: string): Promise<boolean>;
+
+  // Help Center
+  getHelpTicket(id: string): Promise<HelpTicket | undefined>;
+  getAllHelpTickets(): Promise<HelpTicket[]>;
+  createHelpTicket(ticket: InsertHelpTicket): Promise<HelpTicket>;
+  updateHelpTicket(id: string, updates: Partial<InsertHelpTicket>): Promise<HelpTicket | undefined>;
+  getHelpArticle(id: string): Promise<HelpArticle | undefined>;
+  getAllHelpArticles(): Promise<HelpArticle[]>;
+  createHelpArticle(article: InsertHelpArticle): Promise<HelpArticle>;
+  updateHelpArticle(id: string, updates: Partial<InsertHelpArticle>): Promise<HelpArticle | undefined>;
+  publishHelpArticle(id: string): Promise<HelpArticle | undefined>;
+  getHelpMessagesByTicket(ticketId: string): Promise<HelpMessage[]>;
+  getAllHelpMessages(): Promise<HelpMessage[]>;
+  createHelpMessage(message: InsertHelpMessage): Promise<HelpMessage>;
+  updateHelpMessage(id: string, updates: Partial<InsertHelpMessage>): Promise<HelpMessage | undefined>;
 }
 
 // Utility function to normalize language objects to ensure consistent structure
@@ -888,10 +906,72 @@ export class DatabaseStorage implements IStorage {
         .set({ status })
         .where(eq(orders.id, id))
         .returning();
+
+      // Send notification about order status change
+      await this.sendOrderStatusNotification(order, status);
+
       return order;
     } catch (error) {
       console.error("Database error in updateOrderStatus:", error);
       throw error;
+    }
+  }
+
+  // Helper method to send notifications when order status changes
+  private async sendOrderStatusNotification(order: Order, newStatus: string): Promise<void> {
+    try {
+      // Get the customer for this order
+      const customer = await this.getUser(order.customerId);
+
+      if (customer) {
+        // Send notification to customer about order status change
+        const statusMessages: Record<string, string> = {
+          'new': 'Your order has been received and is being processed.',
+          'pending': 'A driver has been assigned to your order.',
+          'in_progress': 'Your order is now in progress.',
+          'picked_up': 'Your order has been picked up by the driver.',
+          'delivered': 'Your order has been delivered successfully.',
+          'cancelled': 'Your order has been cancelled.'
+        };
+
+        const message = statusMessages[newStatus] || `Your order status has been updated to ${newStatus}.`;
+
+        await NotificationService.sendToUser(customer.id, {
+          title: `Order Status Updated: ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
+          message,
+          type: 'order_status'
+        });
+      }
+
+      // If there's a driver assigned, send notification to the driver too
+      if (order.driverId) {
+        const driver = await this.getDriver(order.driverId);
+        if (driver && driver.userId) {
+          const driverUser = await this.getUser(driver.userId);
+
+          if (driverUser) {
+            const statusMessages: Record<string, string> = {
+              'new': 'A new order has been assigned to you.',
+              'pending': 'You have been assigned to this order.',
+              'in_progress': 'The order is now in progress.',
+              'picked_up': 'Order has been picked up.',
+              'delivered': 'Order has been delivered.',
+              'cancelled': 'The order has been cancelled.'
+            };
+
+            const message = statusMessages[newStatus] || `The order status has been updated to ${newStatus}.`;
+
+            await NotificationService.sendToUser(driverUser.id, {
+              title: `Order Status Updated: ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
+              message,
+              type: 'order_status'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error sending order status notification:", error);
+      // Don't throw error as this is just a notification, not critical to the order update
     }
   }
 
@@ -1361,6 +1441,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+<<<<<<< HEAD
   // Admin Notes
   async getAllAdminNotes(): Promise<AdminNote[]> {
     try {
@@ -1403,10 +1484,21 @@ export class DatabaseStorage implements IStorage {
       return updatedNote as AdminNote | undefined;
     } catch (error) {
       console.error("Database error in updateAdminNote:", error);
+=======
+  // Help Center
+  async getHelpTicket(id: string): Promise<HelpTicket | undefined> {
+    try {
+      const db = getDb();
+      const [ticket] = await db.select().from(helpTickets).where(eq(helpTickets.id, id));
+      return ticket;
+    } catch (error) {
+      console.error("Database error in getHelpTicket:", error);
+>>>>>>> 000da9bf462f09a2129f48a12e120abb0496dc93
       return undefined;
     }
   }
 
+<<<<<<< HEAD
   async deleteAdminNote(id: string): Promise<boolean> {
     try {
       const db = getDb();
@@ -1415,6 +1507,150 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Database error in deleteAdminNote:", error);
       return false;
+=======
+  async getAllHelpTickets(): Promise<HelpTicket[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(helpTickets).orderBy(desc(helpTickets.createdAt));
+    } catch (error) {
+      console.error("Database error in getAllHelpTickets:", error);
+      return [];
+    }
+  }
+
+  async createHelpTicket(insertTicket: InsertHelpTicket): Promise<HelpTicket> {
+    try {
+      const db = getDb();
+      const [ticket] = await db.insert(helpTickets).values(insertTicket).returning();
+      return ticket;
+    } catch (error) {
+      console.error("Database error in createHelpTicket:", error);
+      throw error;
+    }
+  }
+
+  async updateHelpTicket(id: string, updates: Partial<InsertHelpTicket>): Promise<HelpTicket | undefined> {
+    try {
+      const db = getDb();
+      const [updatedTicket] = await db.update(helpTickets)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(helpTickets.id, id))
+        .returning();
+      return updatedTicket;
+    } catch (error) {
+      console.error("Database error in updateHelpTicket:", error);
+      return undefined;
+    }
+  }
+
+  async getHelpArticle(id: string): Promise<HelpArticle | undefined> {
+    try {
+      const db = getDb();
+      const [article] = await db.select().from(helpArticles).where(eq(helpArticles.id, id));
+      return article;
+    } catch (error) {
+      console.error("Database error in getHelpArticle:", error);
+      return undefined;
+    }
+  }
+
+  async getAllHelpArticles(): Promise<HelpArticle[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(helpArticles).orderBy(desc(helpArticles.createdAt));
+    } catch (error) {
+      console.error("Database error in getAllHelpArticles:", error);
+      return [];
+    }
+  }
+
+  async createHelpArticle(insertArticle: InsertHelpArticle): Promise<HelpArticle> {
+    try {
+      const db = getDb();
+      const [article] = await db.insert(helpArticles).values(insertArticle).returning();
+      return article;
+    } catch (error) {
+      console.error("Database error in createHelpArticle:", error);
+      throw error;
+    }
+  }
+
+  async updateHelpArticle(id: string, updates: Partial<InsertHelpArticle>): Promise<HelpArticle | undefined> {
+    try {
+      const db = getDb();
+      const [updatedArticle] = await db.update(helpArticles)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(helpArticles.id, id))
+        .returning();
+      return updatedArticle;
+    } catch (error) {
+      console.error("Database error in updateHelpArticle:", error);
+      return undefined;
+    }
+  }
+
+  async publishHelpArticle(id: string): Promise<HelpArticle | undefined> {
+    try {
+      const db = getDb();
+      const [updatedArticle] = await db.update(helpArticles)
+        .set({
+          status: 'published',
+          publishedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(helpArticles.id, id))
+        .returning();
+      return updatedArticle;
+    } catch (error) {
+      console.error("Database error in publishHelpArticle:", error);
+      return undefined;
+    }
+  }
+
+  // Help Messages
+  async getHelpMessagesByTicket(ticketId: string): Promise<HelpMessage[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(helpMessages).where(eq(helpMessages.ticketId, ticketId)).orderBy(desc(helpMessages.createdAt));
+    } catch (error) {
+      console.error("Database error in getHelpMessagesByTicket:", error);
+      return [];
+    }
+  }
+
+  async getAllHelpMessages(): Promise<HelpMessage[]> {
+    try {
+      const db = getDb();
+      return await db.select().from(helpMessages).orderBy(desc(helpMessages.createdAt));
+    } catch (error) {
+      console.error("Database error in getAllHelpMessages:", error);
+      return [];
+    }
+  }
+
+  async createHelpMessage(insertMessage: InsertHelpMessage): Promise<HelpMessage> {
+    try {
+      const db = getDb();
+      const [message] = await db.insert(helpMessages).values(insertMessage).returning();
+      return message;
+    } catch (error) {
+      console.error("Database error in createHelpMessage:", error);
+      throw error;
+    }
+  }
+
+  async updateHelpMessage(id: string, updates: Partial<InsertHelpMessage>): Promise<HelpMessage | undefined> {
+    try {
+      const db = getDb();
+      const [updatedMessage] = await db.update(helpMessages)
+        .set(updates)
+        .where(eq(helpMessages.id, id))
+        .returning();
+      return updatedMessage;
+    } catch (error) {
+      console.error("Database error in updateHelpMessage:", error);
+      return undefined;
+>>>>>>> 000da9bf462f09a2129f48a12e120abb0496dc93
     }
   }
 }

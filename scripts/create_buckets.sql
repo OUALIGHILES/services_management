@@ -46,14 +46,26 @@ BEGIN
 
   -- Create policy for user-avatars bucket if it doesn't exist
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'storage' 
-    AND tablename = 'objects' 
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage'
+    AND tablename = 'objects'
     AND policyname = 'UserAvatarsPublicRead'
   ) THEN
     CREATE POLICY "UserAvatarsPublicRead" ON storage.objects
     FOR SELECT TO anon, authenticated
     USING (bucket_id = 'user-avatars');
+  END IF;
+
+  -- Create policy for categories bucket if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage'
+    AND tablename = 'objects'
+    AND policyname = 'CategoriesPublicRead'
+  ) THEN
+    CREATE POLICY "CategoriesPublicRead" ON storage.objects
+    FOR SELECT TO anon, authenticated
+    USING (bucket_id = 'categories');
   END IF;
 
   -- Create policy for driver-documents bucket (private - only authenticated users with proper roles can access)

@@ -6,8 +6,11 @@ import {
   insertNotificationSchema, insertMessageSchema, insertRatingSchema,
   insertAdminSettingSchema, insertProductSchema, insertHomeBannerSchema, insertStoreSchema,
   insertAdminNoteSchema,
+  insertHelpTicketSchema, insertHelpArticleSchema, insertHelpMessageSchema,
+  selectHelpTicketSchema, selectHelpArticleSchema, selectHelpMessageSchema,
   users, drivers, vehicles, zones, serviceCategories, subcategories, services, pricing,
-  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, adminNotes
+  orders, orderOffers, transactions, notifications, messages, ratings, adminSettings, products, homeBanners, stores, adminNotes, helpTickets, helpArticles, helpMessages,
+  HelpTicket, HelpArticle, HelpMessage
 } from './schema';
 
 // Create a custom schema for subcategory creation that excludes categoryId since it comes from URL parameter

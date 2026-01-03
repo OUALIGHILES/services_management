@@ -1065,6 +1065,75 @@ export async function registerRoutes(
     }
   });
 
+  // --- Enhanced Notification Endpoints ---
+  // Send notification to specific role
+  app.post("/api/notifications/send-to-role", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { role, title, message, type, excludeUserId } = req.body;
+
+      if (!role || !title || !message) {
+        return res.status(400).json({ message: "Role, title, and message are required" });
+      }
+
+      await NotificationService.sendToRole(role, {
+        title,
+        message,
+        type,
+        excludeUserId
+      });
+
+      res.status(200).json({ message: `Notification sent to all ${role}s successfully` });
+    } catch (error) {
+      console.error("Error sending notification to role:", error);
+      res.status(500).json({ message: "Failed to send notification to role" });
+    }
+  });
+
+  // Send notification to all users
+  app.post("/api/notifications/send-to-all", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { title, message, type, excludeUserId } = req.body;
+
+      if (!title || !message) {
+        return res.status(400).json({ message: "Title and message are required" });
+      }
+
+      await NotificationService.sendToAll({
+        title,
+        message,
+        type,
+        excludeUserId
+      });
+
+      res.status(200).json({ message: "Notification sent to all users successfully" });
+    } catch (error) {
+      console.error("Error sending notification to all users:", error);
+      res.status(500).json({ message: "Failed to send notification to all users" });
+    }
+  });
+
+  // Send notification to multiple specific users
+  app.post("/api/notifications/send-to-multiple", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const { userIds, title, message, type } = req.body;
+
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0 || !title || !message) {
+        return res.status(400).json({ message: "User IDs array, title, and message are required" });
+      }
+
+      await NotificationService.sendToMultipleUserIds(userIds, {
+        title,
+        message,
+        type
+      });
+
+      res.status(200).json({ message: `Notification sent to ${userIds.length} users successfully` });
+    } catch (error) {
+      console.error("Error sending notification to multiple users:", error);
+      res.status(500).json({ message: "Failed to send notification to multiple users" });
+    }
+  });
+
   // --- Image Upload Endpoints ---
   // Configure multer for image uploads
   const imageUpload = multer({
@@ -1596,6 +1665,49 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error setting admin setting:", error);
       res.status(500).json({ message: "Failed to set admin setting" });
+    }
+  });
+
+  // --- SEO Settings ---
+  app.get("/api/admin-settings/seo", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const seoSetting = await storage.getAdminSetting("seo_settings");
+
+      if (!seoSetting) {
+        // Return default SEO settings if not found
+        return res.json({
+          siteTitle: "GoDelivery - Fast & Reliable Delivery Service",
+          metaDescription: "GoDelivery connects customers with reliable drivers for all their delivery needs. Fast, secure, and convenient delivery service.",
+          defaultKeywords: "delivery, service, logistics, transport",
+          author: "GoDelivery Team",
+          ogTitle: "GoDelivery - Fast & Reliable Delivery Service",
+          ogDescription: "GoDelivery connects customers with reliable drivers for all their delivery needs. Fast, secure, and convenient delivery service.",
+          ogImage: "/images/og-image.jpg",
+          twitterCard: "summary_large_image",
+        });
+      }
+
+      res.json(seoSetting.value);
+    } catch (error) {
+      console.error("Error fetching SEO settings:", error);
+      res.status(500).json({ message: "Failed to fetch SEO settings" });
+    }
+  });
+
+  app.post("/api/admin-settings/seo", requireAuth, isAdminOrSubAdmin, async (req, res) => {
+    try {
+      const seoData = req.body;
+
+      // Validate required fields
+      if (!seoData.siteTitle || !seoData.metaDescription) {
+        return res.status(400).json({ message: "siteTitle and metaDescription are required" });
+      }
+
+      const setting = await storage.setAdminSetting("seo_settings", seoData);
+      res.json(setting.value);
+    } catch (error) {
+      console.error("Error setting SEO settings:", error);
+      res.status(500).json({ message: "Failed to set SEO settings" });
     }
   });
 

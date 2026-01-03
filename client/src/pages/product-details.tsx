@@ -17,18 +17,13 @@ import AdminNotesDisplay from "@/components/AdminNotesDisplay";
 import CustomerNotesInput from "@/components/CustomerNotesInput";
 
 export default function ProductDetails() {
-  const [match1, params1] = useRoute("/customer/products/:categoryId/:productId");
-  const [match2, params2] = useRoute("/customer/products/:categoryId/:subcategoryId/:productId");
-
-  // Determine which route matched and extract parameters accordingly
-  const params = match1 ? params1 : params2;
+  const [match, params] = useRoute("/customer/products/:categoryId/:subcategoryId?/:productId");
   const productId = params?.productId || '';
   const subcategoryId = params?.subcategoryId || '';
 
   console.log('ProductDetails params:', params);
   console.log('Product ID being fetched:', productId);
   console.log('Subcategory ID:', subcategoryId);
-  console.log('Route matches - match1:', match1, 'match2:', match2);
 
   const { toast } = useToast();
   const { user } = useAuth();
